@@ -1,0 +1,6 @@
+# name url — fetched by bench/fetch-pages.mjs into .bench/pages (gitignored; third-party HTML is not committed)
+github-readability https://github.com/mozilla/readability
+mdn-abortsignal https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
+pg-essay https://paulgraham.com/greatwork.html
+python-json-docs https://docs.python.org/3/library/json.html
+wikipedia-markdown https://en.wikipedia.org/wiki/Markdown

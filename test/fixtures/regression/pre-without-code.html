@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><title>json docs</title></head>
+<body><main>
+<h1>json</h1>
+<p>Body text sentence that keeps the article long enough to pass thresholds. Body text sentence that keeps the article long enough to pass thresholds. Body text sentence that keeps the article long enough to pass thresholds.</p>
+<p>Encoding basic Python object hierarchies:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> json
+<span class="gp">&gt;&gt;&gt; </span>json.dumps([&#39;foo&#39;, {&#39;bar&#39;: (&#39;baz&#39;, None, 1.0, 2)}])
+&#39;["foo", {"bar": ["baz", null, 1.0, 2]}]&#39;
+<span class="gp">&gt;&gt;&gt; </span>print(json.dumps({"c": 0, "b": 0, "a": 0}, sort_keys=True))
+{"a": 0, "b": 0, "c": 0}
+</pre></div></div>
+<p>Compact encoding: use <code>separators=(',', ':')</code> and the {"key": "value"} form shown in the reference, which is longer than one hundred characters in this sentence on purpose.</p>
+<p>Decoding with an object hook: <code>object_hook=as_complex</code> stays visible.</p>
+</main></body></html>
