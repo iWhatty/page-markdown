@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@joplin/turndown-plugin-gfm':
-        specifier: 1.0.68
-        version: 1.0.68
       '@mozilla/readability':
         specifier: 0.6.0
         version: 0.6.0
@@ -183,9 +180,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@joplin/turndown-plugin-gfm@1.0.68':
-    resolution: {integrity: sha512-m8DfAQNC/V7g0j5H6Jv60WhekBBjodD+zTPGrU+g2m+ux/z8ZX07KQIl6kaAmbKwfvsQhC04op52g63I78sVgg==}
-
   '@mixmark-io/domino@2.2.0':
     resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
 
@@ -336,8 +330,6 @@ snapshots:
 
   '@esbuild/win32-x64@0.27.0':
     optional: true
-
-  '@joplin/turndown-plugin-gfm@1.0.68': {}
 
   '@mixmark-io/domino@2.2.0': {}
 

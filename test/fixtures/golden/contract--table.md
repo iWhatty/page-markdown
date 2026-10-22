@@ -4,5 +4,5 @@ Body text sentence that keeps the article long enough to pass thresholds. Body t
 
 | Name | Qty |
 | --- | --- |
-| A   | 1   |
-| Wide cell |     |
+| A | 1 |
+| Wide cell |    |

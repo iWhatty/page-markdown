@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.1 — 2026-10-22
+
+Fixes from the first in-browser comparison (MDN, Wikipedia, the Python docs,
+GitHub):
+
+- **Tables never come out as raw HTML.** Own GFM table rules replace the
+  plugin's:
+  - a header row is used even when the table has none;
+  - colspans are padded with empty cells;
+  - cell content is flattened to one line (code, lists, line breaks);
+  - pipes are escaped;
+  - layout and nested tables are rendered as blocks.
+- **Dropped lead paragraph restored.** When the extractor leaves out a
+  paragraph that matches the meta description (MDN's heading-less first
+  section), it is put back first. `extraction.leadRecovered` reports it, and
+  `recoverLead: false` turns it off.
+- **Clean title heading.** The page's own H1 (permalink sign removed) when
+  the title contains it, else `og:title` or the title, without a site-name
+  segment at either end. It is exposed as `metadata.headline`.
+- **Smaller bundle.** Strikethrough and task-list rules are now built in, and
+  `@joplin/turndown-plugin-gfm` is no longer a dependency. The browser bundle
+  is 60.2 KB minified, down from 61.7 KB.
+
 ## 0.1.0 — 2026-10-22
 
 First release.

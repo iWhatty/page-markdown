@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>ExampleSignal - Web APIs | Example Docs</title>
+<meta name="description" content="The ExampleSignal interface represents a signal object that lets you talk to an asynchronous operation and stop it when needed.">
+<meta property="og:site_name" content="Example Docs">
+</head>
+<body>
+<header><nav><a href="/">Home</a> <a href="/docs">Docs</a></nav></header>
+<main>
+<article>
+<header><h1>ExampleSignal</h1></header>
+<div class="baseline">Baseline: widely available since 2018.</div>
+<section class="content-section">
+<div class="notecard note"><p><strong>Note:</strong> Also available in workers.</p></div>
+<p>The <strong><code>ExampleSignal</code></strong> interface represents a signal object that lets you talk to an asynchronous operation and stop it when needed.</p>
+</section>
+<section aria-labelledby="properties">
+<h2 id="properties">Instance properties</h2>
+<p>The signal has properties that describe whether the operation stopped and why it stopped, read by any code that holds the signal. Each property is read only and reflects the current state of the signal at the time it is read.</p>
+<p>Code that receives a signal can check these properties before doing more work, or listen for the stop event to clean up resources it holds while the operation runs in the background.</p>
+</section>
+<section aria-labelledby="methods">
+<h2 id="methods">Instance methods</h2>
+<p>The signal offers a method that throws the stop reason when the signal has stopped, so callers can bail out of long loops early without checking each property by hand on every iteration.</p>
+<p>Static methods create signals that stop on their own after a timeout or when any one of several other signals stops, which makes it easy to combine cancellation sources in larger programs.</p>
+</section>
+</article>
+</main>
+<footer>Footer links</footer>
+</body>
+</html>

@@ -29,14 +29,19 @@ function fence(md, lang) {
   return md.match(new RegExp("```" + lang + "\\n([\\s\\S]*?)\\n```"))?.[1] ?? null;
 }
 
-// One row per behaviour in the engine comparison's fixture table.
+// Raw HTML table markup that must never reach the Markdown.
+const RAW_HTML_TABLE = /<\/?(table|tr|td|th|tbody|div)\b|joplin-table-wrapper/i;
+
+// One row per behaviour the package guarantees.
 const FIXTURE_CHECKS = [
   ["Code block verbatim, with language", "contract/code-fidelity.html", (md) => fence(md, "py") === "def f():\n    x = 1\n\n\n\n\n    y = 2\n}"],
   ["`<pre>` without `<code>` fenced; JSON-like text kept", "regression/pre-without-code.html", (md) => Boolean(fence(md, "python")) && /\{"key": "value"\} form/.test(md) && /object_hook=as_complex/.test(md)],
-  ["GFM table with short cells", "contract/table.html", (md) => /^\| A {3}\| 1 {3}\|$/m.test(md)],
+  ["GFM table with short cells", "contract/table.html", (md) => /^\| A \| 1 \|$/m.test(md)],
+  ["Complex tables as GFM, never raw HTML", "regression/complex-tables.html", (md) => !RAW_HTML_TABLE.test(md) && /^\| Filename extensions \|/m.test(md)],
   ["Short list items kept", "contract/nested-lists.html", (md) => /deep1/.test(md) && /^\s*1\.\s+first$/m.test(md)],
   ["Short article trimmed of chrome", "source-capture/article.html", (md) => /Electric motorcycles/.test(md) && !/Subscribe|Sponsored gear|Copyright/.test(md)],
   ["Long article trimmed of chrome", "contract/article-chrome.html", (md) => /Headline/.test(md) && !/\(c\) Footer/.test(md)],
+  ["Headline from the page's H1, no site suffix", "regression/title-suffix.html", (md) => /^# widgets — Widget toolkit\n/.test(md)],
   ["Absolute links", "contract/links.html", (md) => /\]\(https:\/\/example\.com\/rel\/path\?x=1\)/.test(md)],
   ["javascript: links removed", "contract/links.html", (md) => !/javascript:/.test(md)],
   ["Lazy images resolved", "contract/images.html", (md) => /lazy\.png/.test(md)],
@@ -49,16 +54,20 @@ const FIXTURE_CHECKS = [
 // Content preservation and chrome probes per real page.
 const PAGE_CHECKS = {
   "mdn-abortsignal": [
+    ["Keeps the definition paragraph", (md) => /interface represents a signal object/.test(md)],
+    ["Clean title heading", (md) => /^# AbortSignal\n/.test(md)],
     ["Keeps AbortSignal.timeout()", (md) => /AbortSignal\.timeout\(\)/.test(md)],
     ["≥ 8 fenced code blocks", (md) => (md.match(/^```/gm) || []).length / 2 >= 8],
     ["No 'In this article' chrome", (md) => !/In this article/.test(md)],
   ],
   "wikipedia-markdown": [
+    ["No raw HTML tables", (md) => !RAW_HTML_TABLE.test(md)],
     ["≥ 10 section headings", (md) => (md.match(/^#{2,4} /gm) || []).length >= 10],
     ["No [edit] links", (md) => !/\[edit\]/i.test(md)],
     ["Keeps 'John Gruber'", (md) => /John Gruber/.test(md)],
   ],
   "python-json-docs": [
+    ["Clean title heading", (md) => /^# json — JSON encoder and decoder\n/.test(md)],
     ["Code fenced", (md) => /^```/m.test(md) && /^>>> import json$/m.test(md)],
     ["JSON example intact", (md) => /\{"bar": \["baz", null, 1\.0, 2\]\}/.test(md)],
     ["object_hook text kept", (md) => /object_hook/.test(md)],
@@ -78,7 +87,7 @@ function relativeLinks(md) {
 }
 
 const rows = [];
-let score = Object.fromEntries(Object.keys(ENGINES).map((e) => [e, 0]));
+const score = Object.fromEntries(Object.keys(ENGINES).map((e) => [e, 0]));
 let total = 0;
 
 for (const [label, file, check] of FIXTURE_CHECKS) {

@@ -74,7 +74,7 @@ test("tables become GFM tables, short cells included", () => {
   const { markdown } = run("contract/table.html");
   assert.match(markdown, /^\| Name \| Qty \|$/m);
   assert.match(markdown, /^\| --- \| --- \|$/m);
-  assert.match(markdown, /^\| A {3}\| 1 {3}\|$/m);
+  assert.match(markdown, /^\| A \| 1 \|$/m);
   assert.match(markdown, /Wide cell/);
 });
 
@@ -259,4 +259,75 @@ test("<br> hard breaks survive cleaning", async () => {
   const { cleanMarkdown } = await import("../src/clean.js");
   const { markdown } = cleanMarkdown(htmlToMarkdown("<p>line one<br>line two</p><p>next   </p>"));
   assert.equal(markdown, "line one  \nline two\n\nnext");
+});
+
+// Readability drops MDN's heading-less lead section on the real page; an
+// extractor that keeps only the headed sections stands in for that here.
+function sectionsOnly(doc) {
+  const html = Array.from(doc.querySelectorAll("section[aria-labelledby]")).map((s) => s.outerHTML).join("\n");
+  return { html, method: "sections_only", title: "ExampleSignal - Web APIs | Example Docs" };
+}
+
+test("a lead paragraph the extractor dropped is restored from the meta description", () => {
+  const result = run("regression/lead-section.html", { extract: sectionsOnly });
+  assert.equal(result.extraction.leadRecovered, true);
+  assert.match(result.markdown, /^The \*\*`ExampleSignal`\*\* interface represents a signal object/);
+  assert.equal((result.markdown.match(/represents a signal object/g) || []).length, 1);
+  assert.match(result.markdown, /## Instance properties/);
+  const off = run("regression/lead-section.html", { extract: sectionsOnly, recoverLead: false });
+  assert.equal(off.extraction.leadRecovered, undefined);
+  assert.doesNotMatch(off.markdown, /represents a signal object/);
+});
+
+test("lead recovery never duplicates a paragraph the extractor kept", () => {
+  const kept = run("regression/lead-section.html");
+  assert.equal(kept.extraction.method, "readability");
+  assert.equal(kept.extraction.leadRecovered, undefined);
+  assert.equal((kept.markdown.match(/represents a signal object/g) || []).length, 1);
+  assert.equal(run("source-capture/article.html").extraction.leadRecovered, undefined);
+});
+
+test("lead recovery needs a real description match", async () => {
+  const { recoverLeadParagraph } = await import("../src/refine.js");
+  const doc = load("regression/lead-section.html");
+  assert.equal(recoverLeadParagraph("<p>Other</p>", doc, "Too short").recovered, false);
+  assert.equal(recoverLeadParagraph("<p>Other</p>", doc, "A description that appears nowhere in this page at all, long enough.").recovered, false);
+});
+
+test("tables never come out as raw HTML", () => {
+  const { markdown } = run("regression/complex-tables.html");
+  assert.doesNotMatch(markdown, /<\/?(table|tr|td|th|tbody|div)\b|joplin-table-wrapper|data-mw/i);
+  assert.match(markdown, /^\| Markdown \|/m);
+  assert.match(markdown, /^\| --- \| --- \|$/m);
+  assert.match(markdown, /^\| Filename extensions \| `\.md`, `\.markdown`/m);
+  assert.match(markdown, /^\| Type of format \| .*Markup language.*Plain text.* \|$/m);
+  assert.match(markdown, /^\| Syntax note \| Use a \\| b for alternatives \|$/m);
+  assert.match(markdown, /^\| Example \| `# Heading \*emphasis\*` \|$/m);
+  // A layout table (one containing a table) becomes blocks, not a grid.
+  assert.match(markdown, /Side text in a layout table\./);
+  assert.match(markdown, /John Gruber/);
+});
+
+test("the headline is the page's H1 without its permalink sign", () => {
+  const { markdown, metadata } = run("regression/title-suffix.html");
+  assert.equal(metadata.headline, "widgets — Widget toolkit");
+  assert.match(markdown, /^# widgets — Widget toolkit\n/);
+  assert.doesNotMatch(markdown.split("\n")[0], /documentation|¶/);
+});
+
+test("headline falls back to the title without a site segment at either end", async () => {
+  const { chooseHeadline } = await import("../src/refine.js");
+  const empty = parseHTML("<!doctype html><html><body><p>x</p></body></html>").document;
+  assert.equal(chooseHeadline(empty, { documentTitle: "Release notes | Example Blog", siteName: "Example Blog" }), "Release notes");
+  assert.equal(chooseHeadline(empty, { documentTitle: "GitHub - owner/repo: A tool", title: "GitHub - owner/repo: A tool", siteName: "GitHub" }), "owner/repo: A tool");
+  const logo = parseHTML("<!doctype html><html><body><h1>Example Blog</h1></body></html>").document;
+  assert.equal(chooseHeadline(logo, { documentTitle: "Post title - Example Blog", siteName: "Example Blog" }), "Post title");
+});
+
+test("strikethrough and task-list checkboxes use GFM syntax", async () => {
+  const { htmlToMarkdown } = await import("../src/convert.js");
+  const markdown = htmlToMarkdown("<p><del>old</del> and <s>gone</s></p><ul><li><input type=\"checkbox\" checked> done</li><li><input type=\"checkbox\"> todo</li></ul>");
+  assert.match(markdown, /~~old~~ and ~~gone~~/);
+  assert.match(markdown, /^-\s+\[x\]\s+done$/m);
+  assert.match(markdown, /^-\s+\[ \]\s+todo$/m);
 });

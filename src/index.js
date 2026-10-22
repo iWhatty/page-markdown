@@ -6,8 +6,9 @@ import { extractContent } from "./extract.js";
 import { htmlToMarkdown } from "./convert.js";
 import { cleanMarkdown, applyMode } from "./clean.js";
 import { collectMetadata } from "./metadata.js";
+import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 
 export { sanitizeToInertDocument, DEFAULT_SANITIZE_OPTIONS, isAdvertisementElement, createInertDocument } from "./sanitize.js";
 export { standardizeDocument } from "./standardize.js";
@@ -15,6 +16,7 @@ export { extractContent, DEFAULT_MIN_EXTRACT_CHARS } from "./extract.js";
 export { htmlToMarkdown, createTurndown, TURNDOWN_OPTIONS } from "./convert.js";
 export { cleanMarkdown, applyMode, mapOutsideFences } from "./clean.js";
 export { collectMetadata } from "./metadata.js";
+export { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 
 function documentOf(input) {
   if (input?.nodeType === 9) return input;
@@ -37,7 +39,8 @@ function toMarkdown(html, mode) {
  *   or a custom extractor receiving a copy of the standardized document.
  * @property {number} [minExtractChars=100] below this, fall back to the full page
  * @property {boolean} [includeFullPage=false] also return the full-page Markdown
- * @property {boolean} [includeTitle=true] start readable output with "# <title>"
+ * @property {boolean} [includeTitle=true] start readable output with "# <headline>"
+ * @property {boolean} [recoverLead=true] restore a dropped lead paragraph that matches the meta description
  * @property {object} [sanitize] see DEFAULT_SANITIZE_OPTIONS
  * @property {object} [readability] options passed to Readability
  */
@@ -64,12 +67,19 @@ export function pageToMarkdown(input, options = {}) {
   });
   if (extraction.fallbackReason) warnings.push(`extraction fell back to the full page: ${extraction.fallbackReason}`);
 
-  const main = toMarkdown(extraction.html, mode);
-  // Readability lifts the article's H1 out as its title; put it back so the
-  // capture stands alone, unless the body still has a top-level heading.
+  const pageMetadata = collectMetadata(doc, { url });
+  let extractedHtml = extraction.html;
+  let leadRecovered = false;
+  if (extraction.method !== "full_page" && options.recoverLead !== false) {
+    ({ html: extractedHtml, recovered: leadRecovered } = recoverLeadParagraph(extractedHtml, inert, pageMetadata.description));
+  }
+  const headline = chooseHeadline(inert, { ...pageMetadata, extractedTitle: extraction.title });
+
+  const main = toMarkdown(extractedHtml, mode);
+  // Readability lifts the article's H1 out as its title; put a clean heading
+  // back so the capture stands alone, unless the body still has a top-level one.
   if (options.includeTitle !== false && extraction.method === "readability" && mode !== "text_only") {
-    const title = String(extraction.title || "").replace(/\s+/g, " ").trim();
-    if (title && !/^# \S/m.test(main.markdown)) main.markdown = `# ${title}\n\n${main.markdown}`;
+    if (headline && !/^# \S/m.test(main.markdown)) main.markdown = `# ${headline}\n\n${main.markdown}`;
   }
   const omissionList = [];
   if (omissions.shadowHosts) {
@@ -83,13 +93,15 @@ export function pageToMarkdown(input, options = {}) {
     version: VERSION,
     markdown: main.markdown,
     metadata: {
-      ...collectMetadata(doc, { url }),
+      ...pageMetadata,
+      ...(headline ? { headline } : {}),
       ...(extraction.title ? { extractedTitle: extraction.title } : {}),
       ...(extraction.byline ? { byline: extraction.byline } : {}),
     },
     extraction: {
       method: extraction.method,
       ...(extraction.fallbackReason ? { fallbackReason: extraction.fallbackReason } : {}),
+      ...(leadRecovered ? { leadRecovered: true } : {}),
     },
     omissions: omissionList,
     warnings,
