@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.2 — 2026-10-23
+
+- **Page facts (opt-in).** `pageFacts: true` appends a `## Page facts` list
+  of short label/value pairs that sit outside the extracted article: a
+  package sidebar's version, license and downloads, spec and price rows,
+  infobox rows. Readability drops these asides, which suits reading but
+  loses the answer to "which version?". Pairs come from a heading followed by
+  a short value, `<dt>`/`<dd>`, and two-cell table rows. Values already in
+  the article, sentences, link lists, lone non-data links and anything in
+  navigation, header, footer or forms are skipped. `extraction.pageFacts`
+  counts them; `collectPageFacts` is exported. Default output is unchanged.
+- New regression fixture: a package page whose version lives only in the
+  sidebar.
+
 ## 0.1.1 — 2026-10-22
 
 Fixes from the first in-browser comparison (MDN, Wikipedia, the Python docs,

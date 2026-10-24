@@ -52,19 +52,23 @@ pageToMarkdown(doc, { url: "https://example.com/article" });
 | `includeFullPage` | `false` | Also return `fullPageMarkdown` |
 | `includeTitle` | `true` | Start readable output with `# <headline>`: the page's H1, else its title without the site name |
 | `recoverLead` | `true` | Restore a lead paragraph the extractor dropped, when it matches the meta description |
+| `pageFacts` | `false` | Append `## Page facts`: short label/value pairs outside the article (a sidebar's version or license, spec rows, infobox rows) that the extractor dropped. `extraction.pageFacts` counts them |
 | `mode` | `"full"` | `"no_links"` keeps link text; `"text_only"` also drops structure. Fenced code is never changed |
 | `sanitize` | see `DEFAULT_SANITIZE_OPTIONS` | `stripAds`, `extraStripSelectors` (e.g. `["[data-app-overlay]"]`), shadow limits |
 | `readability` | `{}` | Passed to Readability |
 
 The stages are also exported for advanced use: `sanitizeToInertDocument`,
 `standardizeDocument`, `extractContent`, `htmlToMarkdown`, `cleanMarkdown`,
-`applyMode` and `collectMetadata`.
+`applyMode`, `collectMetadata` and `collectPageFacts`.
 
 ### Recipes
 
 ```js
 // Keep both views: the readable article and the whole page.
 const { markdown, fullPageMarkdown } = pageToMarkdown(document, { includeFullPage: true });
+
+// For agents answering questions: keep facts from asides (version, price, specs).
+pageToMarkdown(document, { pageFacts: true });
 
 // Drop your own UI before capture.
 pageToMarkdown(document, { sanitize: { extraStripSelectors: ["#my-extension-panel"] } });
@@ -76,7 +80,7 @@ pageToMarkdown(document, { mode: "text_only" });
 ## Quality
 
 `npm test` runs the contract suite. It covers:
-- golden outputs for 19 fixtures;
+- golden outputs for 20 fixtures;
 - regressions for known converter bugs, including dropped lead paragraphs,
   raw HTML tables and site-suffixed titles;
 - modes, metadata, JSON-LD and the full-page fallback;

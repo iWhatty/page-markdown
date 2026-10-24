@@ -7,8 +7,9 @@ import { htmlToMarkdown } from "./convert.js";
 import { cleanMarkdown, applyMode } from "./clean.js";
 import { collectMetadata } from "./metadata.js";
 import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
+import { collectPageFacts, pageFactsMarkdown } from "./facts.js";
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.1.2";
 
 export { sanitizeToInertDocument, DEFAULT_SANITIZE_OPTIONS, isAdvertisementElement, createInertDocument } from "./sanitize.js";
 export { standardizeDocument } from "./standardize.js";
@@ -17,6 +18,7 @@ export { htmlToMarkdown, createTurndown, TURNDOWN_OPTIONS } from "./convert.js";
 export { cleanMarkdown, applyMode, mapOutsideFences } from "./clean.js";
 export { collectMetadata } from "./metadata.js";
 export { recoverLeadParagraph, chooseHeadline } from "./refine.js";
+export { collectPageFacts, pageFactsMarkdown } from "./facts.js";
 
 function documentOf(input) {
   if (input?.nodeType === 9) return input;
@@ -41,6 +43,8 @@ function toMarkdown(html, mode) {
  * @property {boolean} [includeFullPage=false] also return the full-page Markdown
  * @property {boolean} [includeTitle=true] start readable output with "# <headline>"
  * @property {boolean} [recoverLead=true] restore a dropped lead paragraph that matches the meta description
+ * @property {boolean} [pageFacts=false] append "## Page facts": short label/value pairs
+ *   (sidebar versions, prices, spec rows) that the extracted article left out
  * @property {object} [sanitize] see DEFAULT_SANITIZE_OPTIONS
  * @property {object} [readability] options passed to Readability
  */
@@ -81,6 +85,11 @@ export function pageToMarkdown(input, options = {}) {
   if (options.includeTitle !== false && extraction.method === "readability" && mode !== "text_only") {
     if (headline && !/^# \S/m.test(main.markdown)) main.markdown = `# ${headline}\n\n${main.markdown}`;
   }
+  let pageFacts = [];
+  if (options.pageFacts && extraction.method !== "full_page" && mode !== "text_only") {
+    pageFacts = collectPageFacts(inert, extractedHtml);
+    if (pageFacts.length) main.markdown = `${main.markdown}\n\n${pageFactsMarkdown(pageFacts)}`;
+  }
   const omissionList = [];
   if (omissions.shadowHosts) {
     omissionList.push({ kind: "shadow_content", count: omissions.shadowHosts, note: "Open shadow content omitted: capture limit" });
@@ -102,6 +111,7 @@ export function pageToMarkdown(input, options = {}) {
       method: extraction.method,
       ...(extraction.fallbackReason ? { fallbackReason: extraction.fallbackReason } : {}),
       ...(leadRecovered ? { leadRecovered: true } : {}),
+      ...(pageFacts.length ? { pageFacts: pageFacts.length } : {}),
     },
     omissions: omissionList,
     warnings,

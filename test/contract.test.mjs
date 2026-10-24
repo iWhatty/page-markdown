@@ -43,10 +43,13 @@ function golden(name, actual) {
   assert.equal(actual, expected, `${name} changed; review, then regenerate if intended`);
 }
 
+// Fixtures whose golden pins an opt-in behaviour.
+const GOLDEN_OPTIONS = { "regression/package-sidebar.html": { pageFacts: true } };
+
 for (const dir of ["contract", "source-capture", "regression"]) {
   for (const file of fs.readdirSync(path.join(FIXTURES, dir)).filter((f) => f.endsWith(".html"))) {
     test(`golden: ${dir}/${file}`, () => {
-      golden(`${dir}--${file.replace(/\.html$/, "")}`, run(`${dir}/${file}`).markdown);
+      golden(`${dir}--${file.replace(/\.html$/, "")}`, run(`${dir}/${file}`, GOLDEN_OPTIONS[`${dir}/${file}`]).markdown);
     });
   }
 }
@@ -330,4 +333,24 @@ test("strikethrough and task-list checkboxes use GFM syntax", async () => {
   assert.match(markdown, /~~old~~ and ~~gone~~/);
   assert.match(markdown, /^-\s+\[x\]\s+done$/m);
   assert.match(markdown, /^-\s+\[ \]\s+todo$/m);
+});
+
+test("pageFacts keeps sidebar facts the article dropped, and nothing else", () => {
+  const plain = run("regression/package-sidebar.html");
+  assert.equal(plain.extraction.method, "readability");
+  assert.doesNotMatch(plain.markdown, /4\.2\.0|Page facts/);
+
+  const { markdown, extraction } = run("regression/package-sidebar.html", { pageFacts: true });
+  const facts = markdown.slice(markdown.indexOf("## Page facts"));
+  assert.match(markdown, /^## Page facts$/m);
+  for (const line of ["- Version: 4.2.0", "- Weekly Downloads: 527,786", "- Unpacked Size: 38.4 MB", "- Last publish: 3 days ago", "- Total Files: 4,812"]) {
+    assert.ok(facts.includes(line), line);
+  }
+  // Already in the article (ISC), navigation lists, page chrome.
+  assert.doesNotMatch(facts, /License|Collaborators|Support|Company|Package Sidebar/);
+  assert.equal(extraction.pageFacts, facts.split("\n").filter((l) => l.startsWith("- ")).length);
+  // Articles without asides are unchanged.
+  for (const file of ["contract/article-chrome.html", "source-capture/article.html", "regression/lead-section.html"]) {
+    assert.equal(run(file, { pageFacts: true }).markdown, run(file).markdown, file);
+  }
 });
