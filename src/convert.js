@@ -88,7 +88,9 @@ function cellText(content) {
     .replace(/\n+/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
-  return text.replace(/(^|[^\\])\|/g, "$1\\|");
+  // Every pipe: Turndown escapes a literal backslash as "\\", so "\|" in the
+  // content is not an escaped pipe.
+  return text.replace(/\|/g, "\\|");
 }
 
 function tableRules(turndown) {

@@ -75,7 +75,11 @@ export function cleanMarkdown(markdown) {
   return { markdown: cleaned.replace(/^\n+|\n+$/g, ""), removedJsonLines };
 }
 
-const stripInlineLinks = (md) => md.replace(/(!?)\[([^\]]*)\]\((?:[^()\s]|\([^()]*\))+(?:\s+"[^"]*")?\)/g, (all, bang, text) => (bang ? all : text));
+// Link text may hold escaped brackets and whole images: [![alt](img)](href)
+// keeps the image, not "![alt" pointing at href.
+const LINK_TARGET = String.raw`\((?:[^()\s]|\([^()]*\))+(?:\s+"[^"]*")?\)`;
+const INLINE_LINK = new RegExp(String.raw`(!?)\[((?:\\.|!\[[^\]]*\]${LINK_TARGET}|[^\[\]\\])*)\]${LINK_TARGET}`, "g");
+const stripInlineLinks = (md) => md.replace(INLINE_LINK, (all, bang, text) => (bang ? all : text));
 const dropReferenceDefs = (md) => md.replace(/^\s{0,3}\[[^\]]+]:\s+\S+.*$/gm, "");
 const stripStructure = (md) => md
   .replace(/^\s{0,3}#{1,6}\s+/gm, "")

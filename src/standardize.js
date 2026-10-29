@@ -12,6 +12,8 @@ const LANGUAGE_ALIASES = { python3: "python", py3: "python" };
 const NON_LANGUAGES = new Set(["default", "none", "text", "plain", "plaintext", "nohighlight", "notranslate"]);
 // Wrappers sites put around a heading next to "edit" or permalink widgets.
 const EDIT_WIDGETS = ".mw-editsection, .headerlink, .anchor, .heading-anchor, a.anchor, [aria-hidden='true'] a";
+// Content without text that a heading wrapper may still hold.
+const MEDIA = "img, picture, video, audio";
 
 function resolveUrl(value, base) {
   const raw = String(value || "").trim();
@@ -121,7 +123,7 @@ function standardizeHeadings(doc, stats) {
     const parent = heading.parentElement;
     if (!parent || parent.localName !== "div") continue;
     const others = Array.from(parent.children).filter((el) => el !== heading);
-    if (others.every((el) => !(el.textContent || "").trim())) {
+    if (others.every((el) => !(el.textContent || "").trim() && !el.matches?.(MEDIA) && !el.querySelector?.(MEDIA))) {
       parent.replaceWith(heading);
       stats.headingsUnwrapped += 1;
     }

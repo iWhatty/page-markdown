@@ -4,7 +4,7 @@ import { sanitizeToInertDocument } from "./sanitize.js";
 import { standardizeDocument } from "./standardize.js";
 import { extractContent } from "./extract.js";
 import { htmlToMarkdown } from "./convert.js";
-import { cleanMarkdown, applyMode } from "./clean.js";
+import { cleanMarkdown, applyMode, mapOutsideFences } from "./clean.js";
 import { collectMetadata } from "./metadata.js";
 import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 import { collectPageFacts, pageFactsMarkdown } from "./facts.js";
@@ -30,6 +30,16 @@ function toMarkdown(html, mode) {
   const converted = htmlToMarkdown(html);
   const { markdown, removedJsonLines } = cleanMarkdown(converted);
   return { markdown: applyMode(markdown, mode), removedJsonLines, convertedChars: converted.length };
+}
+
+// A top-level heading in the prose; a "# comment" line in fenced code is not one.
+function hasTopHeading(markdown) {
+  let found = false;
+  mapOutsideFences(markdown, (prose) => {
+    found ||= /^# \S/m.test(prose);
+    return prose;
+  });
+  return found;
 }
 
 /**
@@ -83,7 +93,7 @@ export function pageToMarkdown(input, options = {}) {
   // Readability lifts the article's H1 out as its title; put a clean heading
   // back so the capture stands alone, unless the body still has a top-level one.
   if (options.includeTitle !== false && extraction.method === "readability" && mode !== "text_only") {
-    if (headline && !/^# \S/m.test(main.markdown)) main.markdown = `# ${headline}\n\n${main.markdown}`;
+    if (headline && !hasTopHeading(main.markdown)) main.markdown = `# ${headline}\n\n${main.markdown}`;
   }
   let pageFacts = [];
   if (options.pageFacts && extraction.method !== "full_page" && mode !== "text_only") {

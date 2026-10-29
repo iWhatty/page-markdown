@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+Content-fidelity fixes:
+
+- **Title heading kept beside shell comments.** A `# comment` line in fenced
+  code no longer counts as the article's top-level heading, which had
+  suppressed the `# <headline>` line.
+- **Every pipe in a table cell is escaped.** `a || b` escaped only its first
+  pipe, which added a column and broke the table.
+- **Images beside a heading survive.** A heading wrapper that also holds an
+  image (or picture, video, audio) is no longer unwrapped to the bare heading.
+- **`no_links` keeps linked images intact.** `[![alt](img)](href)` became
+  `![alt](href)`, an image pointing at the link target; the image is now kept
+  as it was.
+- Four new regression fixtures, one per fix.
+
 ## 0.1.2 — 2026-10-23
 
 - **Page facts (opt-in).** `pageFacts: true` appends a `## Page facts` list

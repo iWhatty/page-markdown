@@ -80,9 +80,9 @@ pageToMarkdown(document, { mode: "text_only" });
 ## Quality
 
 `npm test` runs the contract suite. It covers:
-- golden outputs for 20 fixtures;
+- golden outputs for 24 fixtures;
 - regressions for known converter bugs, including dropped lead paragraphs,
-  raw HTML tables and site-suffixed titles;
+  raw HTML tables, site-suffixed titles and unescaped table pipes;
 - modes, metadata, JSON-LD and the full-page fallback;
 - the shadow DOM limits and their omission notice;
 - leaving the live page unmodified.

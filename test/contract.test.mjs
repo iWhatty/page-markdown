@@ -44,7 +44,10 @@ function golden(name, actual) {
 }
 
 // Fixtures whose golden pins an opt-in behaviour.
-const GOLDEN_OPTIONS = { "regression/package-sidebar.html": { pageFacts: true } };
+const GOLDEN_OPTIONS = {
+  "regression/package-sidebar.html": { pageFacts: true },
+  "regression/linked-images.html": { mode: "no_links" },
+};
 
 for (const dir of ["contract", "source-capture", "regression"]) {
   for (const file of fs.readdirSync(path.join(FIXTURES, dir)).filter((f) => f.endsWith(".html"))) {
@@ -353,4 +356,33 @@ test("pageFacts keeps sidebar facts the article dropped, and nothing else", () =
   for (const file of ["contract/article-chrome.html", "source-capture/article.html", "regression/lead-section.html"]) {
     assert.equal(run(file, { pageFacts: true }).markdown, run(file).markdown, file);
   }
+});
+
+test("a '# comment' in fenced code does not suppress the title heading", () => {
+  const { markdown } = run("regression/code-comment-title.html");
+  assert.match(markdown, /^# Install Guide\n/);
+  assert.equal(fencedBlock(markdown, "bash"), "# Install dependencies\nnpm install");
+});
+
+test("every pipe in a table cell is escaped, so rows keep their width", () => {
+  const { markdown } = run("regression/table-pipes.html");
+  const rows = markdown.split("\n").filter((line) => line.startsWith("|"));
+  for (const row of rows) assert.equal(row.split(/(?<!\\)\|/).length - 2, 2, row);
+  assert.ok(rows.includes("| `a \\|\\| b` | logical or |"));
+  assert.ok(rows.includes("| `a \\| b` | bitwise or |"));
+});
+
+test("a heading wrapper holding an image keeps the image", () => {
+  const { markdown, stats } = run("regression/heading-with-image.html");
+  assert.match(markdown, /^## Diagram$/m);
+  assert.match(markdown, /!\[Pipeline diagram\]\(https:\/\/example\.com\/img\/diagram\.png\)/);
+  assert.equal(stats.standardization.headingsUnwrapped, 1);
+});
+
+test("no_links keeps linked images pointing at the image", () => {
+  const { markdown } = run("regression/linked-images.html", { mode: "no_links" });
+  assert.match(markdown, /^!\[First photo\]\(https:\/\/example\.com\/img\/1\.jpg\) opens the full size\.$/m);
+  assert.match(markdown, /^See !\[second\]\(https:\/\/example\.com\/img\/2\.jpg\) here for more\.$/m);
+  assert.match(markdown, /^A plain about link keeps its text\.$/m);
+  assert.doesNotMatch(markdown, /\/photos\/|\/about/);
 });
