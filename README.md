@@ -53,13 +53,14 @@ pageToMarkdown(doc, { url: "https://example.com/article" });
 | `includeTitle` | `true` | Start readable output with `# <headline>`: the page's H1, else its title without the site name |
 | `recoverLead` | `true` | Restore a lead paragraph the extractor dropped, when it matches the meta description |
 | `pageFacts` | `false` | Append `## Page facts`: short label/value pairs outside the article (a sidebar's version or license, spec rows, infobox rows) that the extractor dropped. `extraction.pageFacts` counts them |
+| `removeHiddenText` | `false` | Remove text hidden from people but read by models: runs of tag characters, variation selectors and invisible operators, found by [text-sanctifier](https://github.com/iWhatty/text-sanctifier)'s `findHiddenRuns`. Applies to `markdown` (fenced code included), `fullPageMarkdown` and `metadata`. The England, Scotland and Wales flags and a lone emoji or text presentation selector are kept. `omissions` gets one entry per kind (`hidden_tag`, `hidden_variation_selector`, `hidden_invisible_operator`) with `count` runs and `chars` code points removed from `markdown` |
 | `mode` | `"full"` | `"no_links"` keeps link text; `"text_only"` also drops structure. Fenced code is never changed |
 | `sanitize` | see `DEFAULT_SANITIZE_OPTIONS` | `stripAds`, `extraStripSelectors` (e.g. `["[data-app-overlay]"]`), shadow limits |
 | `readability` | `{}` | Passed to Readability |
 
 The stages are also exported for advanced use: `sanitizeToInertDocument`,
 `standardizeDocument`, `extractContent`, `htmlToMarkdown`, `cleanMarkdown`,
-`applyMode`, `collectMetadata` and `collectPageFacts`.
+`applyMode`, `collectMetadata`, `collectPageFacts` and `removeHiddenText`.
 
 ### Recipes
 
@@ -75,14 +76,18 @@ pageToMarkdown(document, { sanitize: { extraStripSelectors: ["#my-extension-pane
 
 // Plain text for prompts; code blocks stay intact.
 pageToMarkdown(document, { mode: "text_only" });
+
+// Markdown bound for a model: drop hidden instructions, and see what was dropped.
+const { markdown: safe, omissions } = pageToMarkdown(document, { removeHiddenText: true });
 ```
 
 ## Quality
 
 `npm test` runs the contract suite. It covers:
-- golden outputs for 24 fixtures;
+- golden outputs for 26 fixtures;
 - regressions for known converter bugs, including dropped lead paragraphs,
-  raw HTML tables, site-suffixed titles and unescaped table pipes;
+  raw HTML tables, flattened code in tables, site-suffixed titles and
+  unescaped table pipes;
 - modes, metadata, JSON-LD and the full-page fallback;
 - the shadow DOM limits and their omission notice;
 - leaving the live page unmodified.
@@ -104,6 +109,10 @@ is most of it.
   break may not.
 - **Hidden content stays.** The pipeline reads the static DOM, so elements
   hidden only by CSS remain unless extraction drops them.
+- **`removeHiddenText` covers hidden runs only.** Zero-width spaces, bidi
+  controls and look-alike spaces pass through. It also removes runs that are
+  legitimate in some scripts: ideographic variation selectors in CJK names and
+  the Mongolian free variation selectors.
 - **Iframes and closed shadow roots are not captured.**
 
 ## Licence
@@ -112,7 +121,7 @@ page-markdown is under the WATT3D Source License: AGPL-3.0 with the Additional
 Terms in [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md) (see [LICENSE](LICENSE)).
 [robots.txt](robots.txt) states the AI-crawler policy.
 
-It bundles Mozilla Readability (Apache-2.0) and Turndown (MIT), whose licences
-are in
+It bundles text-sanctifier's run finder (same licence) and Mozilla Readability
+(Apache-2.0) and Turndown (MIT), whose licences are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Those notices must accompany
 any distribution.

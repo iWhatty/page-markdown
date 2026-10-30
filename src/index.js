@@ -1,5 +1,5 @@
 // page-markdown: a page's DOM in, clean Markdown and metadata out.
-// sanitize → standardize → extract → convert → clean (→ mode)
+// sanitize → standardize → extract → convert → clean (→ mode) (→ hidden text)
 import { sanitizeToInertDocument } from "./sanitize.js";
 import { standardizeDocument } from "./standardize.js";
 import { extractContent } from "./extract.js";
@@ -8,6 +8,7 @@ import { cleanMarkdown, applyMode, mapOutsideFences } from "./clean.js";
 import { collectMetadata } from "./metadata.js";
 import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 import { collectPageFacts, pageFactsMarkdown } from "./facts.js";
+import { removeHiddenText, hiddenTextOmissions } from "./hidden.js";
 
 export const VERSION = "0.1.2";
 
@@ -19,6 +20,7 @@ export { cleanMarkdown, applyMode, mapOutsideFences } from "./clean.js";
 export { collectMetadata } from "./metadata.js";
 export { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 export { collectPageFacts, pageFactsMarkdown } from "./facts.js";
+export { removeHiddenText, hiddenTextOmissions } from "./hidden.js";
 
 function documentOf(input) {
   if (input?.nodeType === 9) return input;
@@ -55,6 +57,10 @@ function hasTopHeading(markdown) {
  * @property {boolean} [recoverLead=true] restore a dropped lead paragraph that matches the meta description
  * @property {boolean} [pageFacts=false] append "## Page facts": short label/value pairs
  *   (sidebar versions, prices, spec rows) that the extracted article left out
+ * @property {boolean} [removeHiddenText=false] remove tag-character text,
+ *   variation-selector runs and invisible operators from the Markdown (fenced
+ *   code included), fullPageMarkdown and metadata; omissions count the runs
+ *   removed from the Markdown
  * @property {object} [sanitize] see DEFAULT_SANITIZE_OPTIONS
  * @property {object} [readability] options passed to Readability
  */
@@ -139,6 +145,15 @@ export function pageToMarkdown(input, options = {}) {
       ? main
       : toMarkdown((inert.body || inert.documentElement).innerHTML || "", mode);
     result.fullPageMarkdown = full.markdown;
+  }
+  if (options.removeHiddenText) {
+    const cleaned = removeHiddenText(result.markdown);
+    result.markdown = cleaned.text;
+    result.omissions.push(...hiddenTextOmissions(cleaned.runs));
+    if (result.fullPageMarkdown !== undefined) result.fullPageMarkdown = removeHiddenText(result.fullPageMarkdown).text;
+    for (const [key, value] of Object.entries(result.metadata)) {
+      if (typeof value === "string") result.metadata[key] = removeHiddenText(value).text;
+    }
   }
   if (omissions.shadowHosts) {
     result.markdown += `\n\n_Open shadow content omitted: capture limit (${omissions.shadowHosts} host(s))._`;

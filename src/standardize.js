@@ -5,6 +5,7 @@ const LAZY_SRC_ATTRS = ["data-src", "data-lazy-src", "data-original", "data-lazy
 const LANGUAGE_CLASS = [
   /(?:^|\s)(?:language|lang)-([\w+#.-]+)/i,
   /(?:^|\s)highlight-(?:source-)?([\w+#.-]+)/i,
+  /(?:^|\s)mw-highlight-lang-([\w+#.-]+)/i,
   /(?:^|\s)brush:\s*([\w+#.-]+)/i,
 ];
 // Only normalise names that are clearly the same language; keep site names otherwise.

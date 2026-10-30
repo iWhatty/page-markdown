@@ -5,6 +5,10 @@ Additional Terms in ADDITIONAL_TERMS.md; see LICENSE). It bundles the
 following third-party software, which remains under its own licence terms below.
 These notices must accompany any distribution of page-markdown or a bundle built from it.
 
+It also bundles part of text-sanctifier (https://github.com/iWhatty/text-sanctifier),
+which is WATT3D's own and under the same WATT3D Source License, so it needs no
+separate notice.
+
 ## @mozilla/readability 0.6.0 — Apache License 2.0
 
 Source: https://github.com/mozilla/readability

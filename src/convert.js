@@ -75,16 +75,65 @@ function isLayoutTable(table) {
   return widest <= 1;
 }
 
-function isLayoutCell(node) {
+// A GFM cell is one line, so a data table holding code blocks is rendered as
+// blocks too, each cell under its column's header: the code stays fenced.
+function isBlockTable(table) {
+  return isLayoutTable(table) || Boolean(table.querySelector?.("pre"));
+}
+
+function isBlockCell(node) {
   const table = closest(node, "TABLE");
-  return !table || isLayoutTable(table);
+  return !table || isBlockTable(table);
+}
+
+function labelText(cell) {
+  return String(cell.textContent || "").replace(/\s+/g, " ").trim();
+}
+
+// A first row of two or more <th>: column headers. (A single spanning <th>
+// is a title, not a header.)
+function columnHeaders(table) {
+  const first = tableRows(table)[0];
+  const cells = first ? rowCells(first) : [];
+  return cells.length > 1 && cells.every((cell) => cell.nodeName === "TH") ? first : null;
+}
+
+function rowHeader(row) {
+  const [first, ...rest] = rowCells(row);
+  return first?.nodeName === "TH" && rest.length ? first : null;
+}
+
+// The label for a cell of a block-rendered data table: its column's header
+// (colspans counted), else its row's header. null when the cell is itself a
+// label; "" for layout tables and unlabelled cells.
+function cellLabel(cell) {
+  const table = closest(cell, "TABLE");
+  if (!table || isLayoutTable(table)) return "";
+  const row = cell.parentNode;
+  const header = columnHeaders(table);
+  if (header) {
+    if (row === header) return null;
+    let column = 0;
+    for (const other of rowCells(row)) {
+      if (other === cell) break;
+      column += spanOf(other);
+    }
+    let start = 0;
+    for (const th of rowCells(header)) {
+      if (column < start + spanOf(th)) return labelText(th);
+      start += spanOf(th);
+    }
+    return "";
+  }
+  const th = rowHeader(row);
+  if (!th) return "";
+  return cell === th ? null : labelText(th);
 }
 
 // A GFM cell is one line: collapse breaks and block structure to spaces,
-// turn multi-line code into inline code, and escape pipes.
+// and escape pipes.
 function cellText(content) {
   const text = String(content)
-    .replace(/```[^\n]*\n([\s\S]*?)\n```/g, (all, code) => `\`${code.replace(/\s*\n\s*/g, " ").trim()}\``)
     .replace(/\n+/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -97,7 +146,12 @@ function tableRules(turndown) {
   turndown.addRule("pmTableCell", {
     filter: ["th", "td"],
     replacement(content, node) {
-      if (isLayoutCell(node)) return `\n\n${content}\n\n`;
+      if (isBlockCell(node)) {
+        // Header cells become the labels on the other cells.
+        const label = cellLabel(node);
+        if (label === null) return "";
+        return label ? `\n\n**${createTurndown().escape(label)}**\n\n${content}\n\n` : `\n\n${content}\n\n`;
+      }
       const pad = " |   ".repeat(spanOf(node) - 1);
       return ` ${cellText(content)}${pad} |`;
     },
@@ -105,7 +159,7 @@ function tableRules(turndown) {
   turndown.addRule("pmTableRow", {
     filter: "tr",
     replacement(content, node) {
-      if (isLayoutCell(node)) return `\n${content}\n`;
+      if (isBlockCell(node)) return `\n${content}\n`;
       return `\n|${content}`;
     },
   });
@@ -118,7 +172,7 @@ function tableRules(turndown) {
   turndown.addRule("pmTable", {
     filter: "table",
     replacement(content, node) {
-      if (isLayoutTable(node)) return `\n\n${content}\n\n`;
+      if (isBlockTable(node)) return `\n\n${content}\n\n`;
       const lines = content.split("\n").filter((line) => line.startsWith("|"));
       if (!lines.length) return "\n\n";
       const width = Math.max(...lines.map((line) => line.split(/(?<!\\)\|/).length - 2));

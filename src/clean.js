@@ -71,7 +71,10 @@ export function cleanMarkdown(markdown) {
     // line with text; whitespace-only lines become empty.
     .map((line) => (/\S {2,}$/.test(line) ? line.replace(/[ \t]+$/, "  ") : line.replace(/[ \t]+$/, "")))
     .join("\n")
-    .replace(/\n{3,}/g, "\n\n"));
+    .replace(/\n{3,}/g, "\n\n")
+    // Blocks are joined with "\n": one blank line at most beside a fence.
+    .replace(/^\n+/, "\n")
+    .replace(/\n+$/, "\n"));
   return { markdown: cleaned.replace(/^\n+|\n+$/g, ""), removedJsonLines };
 }
 

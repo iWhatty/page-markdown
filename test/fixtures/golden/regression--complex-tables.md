@@ -7,7 +7,7 @@ Markdown is a lightweight markup language for creating formatted text using a pl
 | Filename extensions | `.md`, `.markdown`[\[1\]](#cite-1) |
 | Type of format | - Markup language - Plain text |
 | Syntax note | Use a \| b for alternatives |
-| Example | `# Heading *emphasis*` |
+| Example | `*emphasis*` |
 
 The language was created in 2004 by John Gruber with Aaron Swartz, with the goal of letting people write in an easy-to-read plain text format that converts to structurally valid HTML.
 

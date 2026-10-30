@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "0.6.0",
+    "text-sanctifier": "1.3.3",
     "turndown": "7.2.4"
   },
   "devDependencies": {

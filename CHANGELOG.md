@@ -14,7 +14,31 @@ Content-fidelity fixes:
 - **`no_links` keeps linked images intact.** `[![alt](img)](href)` became
   `![alt](href)`, an image pointing at the link target; the image is now kept
   as it was.
-- Four new regression fixtures, one per fix.
+- **Code in tables stays fenced.** A GFM cell is one line, so a data table
+  holding `<pre>` code (Wikipedia's syntax examples) was flattened to inline
+  code, losing its line breaks and indentation. Such a table is now rendered
+  as blocks: each cell under a bold label from its column header (or its row
+  header, for infoboxes), with code as verbatim fences. Tables without code
+  are still GFM grids.
+- Code language from MediaWiki's `mw-highlight-lang-*` class.
+- At most one blank line beside a fenced block.
+- Five new regression fixtures, one per fix.
+
+Hidden text (opt-in):
+
+- **`removeHiddenText: true`** removes runs of tag characters, variation
+  selectors and invisible operators, which people can't see but models read
+  (hidden prompt instructions). It applies to the Markdown, fenced code
+  included, and to `fullPageMarkdown` and `metadata`. The England, Scotland
+  and Wales flags and a lone emoji or text presentation selector are kept.
+  `omissions` gets `hidden_tag`, `hidden_variation_selector` and
+  `hidden_invisible_operator` entries with `count` (runs) and `chars` (code
+  points). `removeHiddenText` is exported. Default output is unchanged.
+- New runtime dependency: text-sanctifier 1.3.3 (first-party, no
+  dependencies), for its `text-sanctifier/hidden` run finder. About 1.5 KB
+  minified in the browser bundle.
+- New contract fixture `hidden-text.html`, written with character references
+  so it holds no raw hidden characters.
 
 ## 0.1.2 — 2026-10-23
 
