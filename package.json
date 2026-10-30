@@ -1,6 +1,6 @@
 {
   "name": "page-markdown",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Faithful page-to-Markdown for humans and agents: sanitize, extract the readable article, convert with GFM, and clean without losing content.",
   "type": "module",
   "exports": {
@@ -22,8 +22,9 @@
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.mjs\"",
-    "bench": "node bench/compare.mjs",
-    "size": "node bench/size.mjs"
+    "size": "node bench/size.mjs",
+    "ci": "npm test && npm run size",
+    "bench": "node bench/compare.mjs"
   },
   "keywords": [
     "markdown",

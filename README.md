@@ -1,9 +1,10 @@
 # page-markdown
 
 Faithful page-to-Markdown for humans and agents. Give it a web page's DOM and
-it returns clean Markdown plus metadata. It works in any browser (Chromium,
-Firefox, Safari), for example from an extension's content script, or in Node
-with a DOM library. It was built for WATT3D's browser extensions.
+it returns clean Markdown plus metadata. It is written for browsers, for
+example an extension's content script, and runs in Node with a DOM library.
+So far it is tested only in Node (see [Known limits](#known-limits-v01)). It
+was built for WATT3D's browser extensions.
 
 ```
 live Document
@@ -14,6 +15,8 @@ live Document
                   a dropped lead paragraph restored; a clean title heading
   → convert       Turndown + GitHub-flavoured tables, strikethrough and task lists; never raw HTML
   → clean         fence-safe; keeps short lines and <br> hard breaks; never cuts text
+  → hidden text   opt-in (removeHiddenText): tag-character text, variation-selector runs and
+                  invisible operators removed, fenced code included; counted in omissions
   → { markdown, metadata, extraction, omissions, warnings, stats }
 ```
 
@@ -99,6 +102,9 @@ page body). It runs 15 fixture checks and 17 probes on five real pages, which
 
 Browser bundle: about 65 KB minified, 23 KB gzip (`npm run size`, ceiling 66 KB
 minified). Readability is most of it.
+
+`npm run ci` runs the contract suite and the size check, and must exit 0
+before a commit. It runs locally; the repo deliberately has no cloud CI.
 
 ## Known limits (v0.1)
 

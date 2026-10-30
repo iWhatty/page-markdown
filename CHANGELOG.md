@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 — 2026-10-30
+
+First release on npm. `npm run ci` (contract suite and size check) is the
+local gate before a commit; there is no cloud CI. The size ceiling is 66 KB
+minified.
 
 Content-fidelity fixes:
 
