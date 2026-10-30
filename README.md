@@ -97,8 +97,8 @@ page body). It runs 15 fixture checks and 17 probes on five real pages, which
 `node bench/fetch-pages.mjs` fetches first. See
 [bench/RESULTS.md](bench/RESULTS.md): currently **32/32 against 11/32**.
 
-Browser bundle: about 60 KB minified, 21 KB gzip (`npm run size`). Readability
-is most of it.
+Browser bundle: about 65 KB minified, 23 KB gzip (`npm run size`, ceiling 66 KB
+minified). Readability is most of it.
 
 ## Known limits (v0.1)
 

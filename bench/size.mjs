@@ -6,7 +6,10 @@ import { build } from "esbuild";
 import { gzipSync } from "node:zlib";
 
 const TARGET_MIN_BYTES = 60 * 1024;
-const BUDGET_MIN_BYTES = 64 * 1024;
+// Raised from 64 KB when the bundle reached 64.8 KB: the opt-in hidden-text
+// stage (text-sanctifier's run finder, about 1.5 KB) and block rendering for
+// tables holding code. Raise it again only deliberately, with a reason.
+const BUDGET_MIN_BYTES = 66 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],
