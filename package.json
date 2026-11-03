@@ -1,6 +1,6 @@
 {
   "name": "page-markdown",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Faithful page-to-Markdown for humans and agents: sanitize, extract the readable article, convert with GFM, and clean without losing content.",
   "type": "module",
   "exports": {
@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "0.6.0",
-    "text-sanctifier": "1.3.3",
+    "text-sanctifier": "1.3.8",
     "turndown": "7.2.4"
   },
   "devDependencies": {

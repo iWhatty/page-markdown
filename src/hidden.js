@@ -1,6 +1,6 @@
 // Optional last stage: remove characters that hide text from people but not
-// from models (tag characters, variation-selector runs, invisible operators),
-// found by text-sanctifier's run finder. Legitimate sequences are kept: the
+// from models (tag characters, variation-selector runs, invisible operators,
+// reserved tag-plane code points), found by text-sanctifier's run finder. Legitimate sequences are kept: the
 // England, Scotland and Wales flags and a lone emoji or text presentation
 // selector. Unlike the clean stage, this also applies inside fenced code.
 import { findHiddenRuns } from "text-sanctifier/hidden";
@@ -9,6 +9,7 @@ const NOTES = {
   tag: "Hidden tag-character text removed",
   variation_selector: "Variation selector runs removed",
   invisible_operator: "Invisible operator runs removed",
+  reserved_tag_plane: "Reserved tag-plane runs removed",
 };
 
 /**

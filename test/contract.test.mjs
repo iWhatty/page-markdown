@@ -146,7 +146,7 @@ test("script, style, noscript and template text never appears", () => {
 // character references), so no test file holds them raw.
 const cp = (...points) => String.fromCodePoint(...points);
 const tagText = (s) => cp(...[...s].map((c) => c.charCodeAt(0) + 0xE0000));
-const HIDDEN_CHAR = /[\u{E0000}-\u{E007F}︀-️⁡-⁤]/u;
+const HIDDEN_CHAR = /[\u{E0000}-\u{E0FFF}\uFE00-\uFE0F\u2061-\u2064]/u;
 
 test("removeHiddenText removes hidden runs everywhere and counts them in omissions", () => {
   const off = run("contract/hidden-text.html");
@@ -179,6 +179,24 @@ test("removeHiddenText keeps subdivision flags and a lone presentation selector"
   const { text, runs } = removeHiddenText(`Flag ${wales}, heart ${heart}, forged ${forged}.`);
   assert.equal(text, `Flag ${wales}, heart ${heart}, forged ${cp(0x1F3F4)}.`);
   assert.equal(runs.length, 1);
+});
+
+test("removeHiddenText removes reserved tag-plane runs, with a note", async () => {
+  const { removeHiddenText, hiddenTextOmissions } = await import("../src/index.js");
+  const { text, runs } = removeHiddenText(`a${cp(0xE0080, 0xE0FFF)}b`);
+  assert.equal(text, "ab");
+  assert.deepEqual(hiddenTextOmissions(runs), [
+    { kind: "hidden_reserved_tag_plane", count: 1, chars: 2, note: "Reserved tag-plane runs removed" },
+  ]);
+});
+
+test("every run kind text-sanctifier reports has an omission note", async () => {
+  const { findHiddenRuns } = await import("text-sanctifier/hidden");
+  const { hiddenTextOmissions } = await import("../src/index.js");
+  for (const kind of Object.keys(findHiddenRuns("").counts)) {
+    const [omission] = hiddenTextOmissions([{ kind, count: 1 }]);
+    assert.equal(typeof omission.note, "string", kind);
+  }
 });
 
 test("heading wrappers and edit links are standardized", () => {

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.4 — 2026-11-02
+
+- **text-sanctifier 1.3.8** (was 1.3.3). `removeHiddenText` now also removes
+  runs of reserved tag-plane code points (U+E0080–U+E00FF, U+E01F0–U+E0FFF),
+  which 1.3.3 did not find, and reports them as `hidden_reserved_tag_plane`.
+  The browser bundle grows to about 65.6 KB minified.
+- A test checks that every run kind text-sanctifier can report has an
+  omission note, so a new kind fails `npm run ci` instead of reaching users
+  with no note.
+- A test fails when any source, test, fixture or doc file holds a raw
+  invisible or control character. A test regex in 0.1.3 held four, written
+  by an editing tool that expanded `\u` escapes; they never shipped, since
+  tests are not in the package.
+
 ## 0.1.3 — 2026-10-30
 
 First release on npm. `npm run ci` (contract suite and size check) is the
