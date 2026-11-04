@@ -14,7 +14,7 @@ const NOTES = {
 
 /**
  * @param {string} text
- * @returns {{ text: string, runs: Array<{ kind: string, count: number }> }}
+ * @returns {{ text: string, runs: import("./types.js").HiddenRun[] }}
  */
 export function removeHiddenText(text) {
   const source = String(text ?? "");
@@ -31,7 +31,8 @@ export function removeHiddenText(text) {
 
 /**
  * One omission per kind of run: `count` runs, `chars` code points.
- * @param {Array<{ kind: string, count: number }>} runs
+ * @param {ReadonlyArray<Pick<import("./types.js").HiddenRun, "kind"|"count">>} runs
+ * @returns {import("./types.js").HiddenTextOmission[]}
  */
 export function hiddenTextOmissions(runs) {
   const byKind = new Map();

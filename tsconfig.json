@@ -1,0 +1,21 @@
+{
+  // Declarations come from the JSDoc in src. noImplicitAny stays off so private
+  // helpers can stay unannotated; anything public needs a type in its JSDoc.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist/types",
+    "rootDir": "src",
+    "strict": true,
+    "noImplicitAny": false,
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "module": "node16",
+    "moduleResolution": "node16",
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

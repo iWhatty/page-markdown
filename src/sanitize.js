@@ -1,6 +1,7 @@
 // Stage 1: clone the page into an inert document, inline open shadow roots
 // within limits, and strip non-content. The live page is never modified.
 
+/** @type {Readonly<Required<import("./types.js").SanitizeOptions>>} */
 export const DEFAULT_SANITIZE_OPTIONS = Object.freeze({
   stripScripts: true,
   stripStyles: true,
@@ -92,7 +93,7 @@ function positiveLimit(value, name) {
  * limit is emptied and counted as an omission.
  *
  * @param {Document|Element} root
- * @param {Partial<typeof DEFAULT_SANITIZE_OPTIONS>} [options]
+ * @param {import("./types.js").SanitizeOptions} [options]
  * @returns {{ document: Document, omissions: { shadowHosts: number } }}
  */
 export function sanitizeToInertDocument(root, options = {}) {
@@ -103,8 +104,8 @@ export function sanitizeToInertDocument(root, options = {}) {
     depth: positiveLimit(opts.shadowDepthLimit, "shadowDepthLimit"),
   };
   const selectors = stripSelectors(opts);
-  const sourceDoc = root.nodeType === 9 ? root : root.ownerDocument;
-  const source = root.nodeType === 9 ? root.documentElement : root;
+  const sourceDoc = /** @type {Document} */ (root.nodeType === 9 ? root : root.ownerDocument);
+  const source = root.nodeType === 9 ? /** @type {Document} */ (root).documentElement : root;
   const inert = createInertDocument(sourceDoc);
 
   function shallow(node) {
@@ -157,7 +158,7 @@ export function sanitizeToInertDocument(root, options = {}) {
   // Iterative light-DOM walk: ordinary pages get no depth limit.
   const pending = [[source, clone]];
   while (pending.length) {
-    const [live, copy] = pending.pop();
+    const [live, copy] = /** @type {any[]} */ (pending.pop());
     if (live.shadowRoot) {
       const fragment = inert.createDocumentFragment();
       try {

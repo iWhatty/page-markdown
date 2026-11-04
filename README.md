@@ -67,6 +67,38 @@ The stages are also exported for advanced use: `sanitizeToInertDocument`,
 `standardizeDocument`, `extractContent`, `htmlToMarkdown`, `cleanMarkdown`,
 `applyMode`, `collectMetadata`, `collectPageFacts` and `removeHiddenText`.
 
+### Result
+
+`pageToMarkdown` returns:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `version` | `string` | The package version that made this result |
+| `markdown` | `string` | The Markdown |
+| `fullPageMarkdown` | `string?` | The whole page as Markdown. Present only with `includeFullPage` |
+| `metadata.url`, `canonicalUrl` | `string` | The page URL; the canonical link, else the page URL |
+| `metadata.documentTitle`, `title` | `string` | The `<title>`; og:title or twitter:title, else the JSON-LD headline, else the `<title>` |
+| `metadata.description`, `author`, `published`, `modified`, `siteName`, `lang` | `string` | From meta tags and JSON-LD, `""` when the page doesn't state them. `siteName` falls back to the hostname |
+| `metadata.headline` | `string?` | The heading chosen for the capture |
+| `metadata.extractedTitle`, `byline` | `string?` | What the extractor reported |
+| `extraction.method` | `string` | `"readability"`, `"full_page"`, or the name a custom extractor gave |
+| `extraction.fallbackReason` | `string?` | Why extraction fell back to the full page: `extractor_found_nothing`, `extracted_text_below_minimum` or `extractor_error: …` |
+| `extraction.leadRecovered` | `true?` | A dropped lead paragraph was restored |
+| `extraction.pageFacts` | `number?` | How many facts `pageFacts` appended |
+| `omissions[]` | `{ kind, count, note, chars? }` | What was left out or removed. `kind` is `shadow_content`, `json_line` or a `hidden_*` kind; only `hidden_*` entries have `chars` |
+| `warnings[]` | `string` | Currently the full-page fallback, in words |
+| `stats.mode` | `string` | The output mode used |
+| `stats.extractedHtmlChars`, `convertedChars`, `markdownChars` | `number` | Sizes at each step. `markdownChars` is measured before `removeHiddenText` and the shadow omission notice |
+| `stats.standardization` | `object` | Counts of what standardizing changed: `lazyImagesResolved`, `inlineImagesDropped`, `scriptLinksUnwrapped`, `emptyLinksRemoved`, `preWrapped`, `headingWidgetsRemoved`, `headingsUnwrapped` |
+
+A `?` marks a field that is absent, not empty, when it doesn't apply.
+
+### TypeScript
+
+Types ship with the package, generated from the JSDoc in `src`: `pageToMarkdown`,
+the stages, and `PageMarkdownOptions`, `PageMarkdownResult` and the types they use.
+They bring in TypeScript's `dom` lib, so a Node project needs no `lib` change.
+
 ### Recipes
 
 ```js
@@ -97,6 +129,12 @@ const { markdown: safe, omissions } = pageToMarkdown(document, { removeHiddenTex
 - the shadow DOM limits and their omission notice;
 - leaving the live page unmodified.
 
+`npm run typecheck` checks `src` against its JSDoc with `tsc` and generates the
+declarations in `dist/types`. It then checks those from a consumer's side
+(`test/types/consumer.ts`) and against real output: it runs the pipeline over the
+fixtures and fails when a result or the export list no longer matches the
+declarations, in either direction.
+
 `npm run test:browser` runs the same golden fixtures in headless Chrome (or
 Edge), parsed by the browser's own DOM, with no extra dependencies. It also
 checks what Node can't show:
@@ -116,7 +154,7 @@ page body). It runs 15 fixture checks and 17 probes on five real pages, which
 Browser bundle: about 67 KB minified, 24 KB gzip (`npm run size`, ceiling 68 KB
 minified). Readability is most of it.
 
-`npm run ci` runs the contract suite, the browser run and the size check, and must exit 0
+`npm run ci` runs the contract suite, the type check, the browser run and the size check, and must exit 0
 before a commit. It runs locally; the repo deliberately has no cloud CI.
 
 ## Known limits (v0.1)

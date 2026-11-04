@@ -23,14 +23,20 @@ function copyDocument(doc) {
 }
 
 /**
- * @typedef {{ html: string, method: string, fallbackReason?: string, title?: string,
+ * @typedef {{ html: string, method: "readability"|"full_page"|(string & {}), fallbackReason?: string, title?: string,
  *   byline?: string, published?: string, siteName?: string, lang?: string, excerpt?: string }} Extraction
  */
 
 /**
+ * Receives a copy of the standardized document. Returning nothing, empty HTML
+ * or too little text falls back to the full page; so does throwing.
+ * @typedef {(doc: Document) => Extraction|null|undefined} Extractor
+ */
+
+/**
  * @param {Document} doc standardized inert document (not mutated)
- * @param {{ extract?: "readable"|"full"|((doc: Document) => Extraction|null),
- *   minExtractChars?: number, readability?: object }} [options]
+ * @param {{ extract?: "readable"|"full"|Extractor,
+ *   minExtractChars?: number, readability?: import("./types.js").ReadabilityOptions }} [options]
  * @returns {Extraction}
  */
 export function extractContent(doc, options = {}) {
@@ -59,7 +65,7 @@ export function extractContent(doc, options = {}) {
       };
     }
   } catch (error) {
-    failure = `extractor_error: ${error?.message || error}`;
+    failure = `extractor_error: ${/** @type {any} */ (error)?.message || error}`;
   }
 
   if (!result?.html) return { ...full(), fallbackReason: failure || "extractor_found_nothing" };

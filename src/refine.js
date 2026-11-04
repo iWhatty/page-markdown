@@ -95,7 +95,7 @@ function stripSiteSuffix(title, siteName) {
  * otherwise the title without a trailing site-name segment.
  *
  * @param {Document} doc standardized clone
- * @param {{ documentTitle?: string, title?: string, siteName?: string, extractedTitle?: string }} meta
+ * @param {{ documentTitle?: string, title?: string, siteName?: string, extractedTitle?: string }} [meta]
  */
 export function chooseHeadline(doc, meta = {}) {
   const h1 = firstHeading(doc);

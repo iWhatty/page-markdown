@@ -246,7 +246,10 @@ function tableRules(turndown) {
 
 let shared = null;
 
-/** A configured Turndown instance (cached). */
+/**
+ * A configured Turndown instance (cached).
+ * @returns {import("./types.js").TurndownInstance}
+ */
 export function createTurndown() {
   if (shared) return shared;
   const turndown = new TurndownService({ ...TURNDOWN_OPTIONS });

@@ -88,7 +88,10 @@ function escapeMarkdown(text) {
   return text.replace(/([\\`*_[\]<>|])/g, "\\$1");
 }
 
-/** "## Page facts" list, or "" when there are none. */
+/**
+ * "## Page facts" list, or "" when there are none.
+ * @param {readonly import("./types.js").PageFact[]} facts
+ */
 export function pageFactsMarkdown(facts) {
   if (!facts.length) return "";
   const lines = facts.map(({ label, value }) => `- ${escapeMarkdown(label)}: ${escapeMarkdown(value)}`);
