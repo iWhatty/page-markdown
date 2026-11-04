@@ -94,9 +94,9 @@ A `?` marks a field that is absent, not empty, when it doesn't apply.
 
 ### TypeScript
 
-Types ship with the package (`src/index.d.ts`): `pageToMarkdown`, the stages, and
-`PageMarkdownOptions`, `PageMarkdownResult` and the types they use. They bring in
-TypeScript's `dom` lib, so a Node project needs no `lib` change.
+Types ship with the package, generated from the JSDoc in `src`: `pageToMarkdown`,
+the stages, and `PageMarkdownOptions`, `PageMarkdownResult` and the types they use.
+They bring in TypeScript's `dom` lib, so a Node project needs no `lib` change.
 
 ### Recipes
 
@@ -128,7 +128,8 @@ const { markdown: safe, omissions } = pageToMarkdown(document, { removeHiddenTex
 - the shadow DOM limits and their omission notice;
 - leaving the live page unmodified.
 
-`npm run typecheck` checks `src/index.d.ts` with `tsc`, from a consumer's side
+`npm run typecheck` checks `src` against its JSDoc with `tsc` and generates the
+declarations in `dist/types`. It then checks those from a consumer's side
 (`test/types/consumer.ts`) and against real output: it runs the pipeline over the
 fixtures and fails when a result or the export list no longer matches the
 declarations, in either direction.

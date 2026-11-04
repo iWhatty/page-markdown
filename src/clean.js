@@ -97,7 +97,7 @@ const stripImages = (md) => md.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
  * Output modes. "no_links" keeps link text. "text_only" also drops headings,
  * list markers, emphasis and images. Both leave fenced code verbatim.
  * @param {string} markdown
- * @param {"full"|"no_links"|"text_only"} mode
+ * @param {import("./types.js").OutputMode} [mode]
  */
 export function applyMode(markdown, mode = "full") {
   if (mode === "no_links") return mapOutsideFences(markdown, stripInlineLinks);

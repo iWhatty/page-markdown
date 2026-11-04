@@ -2,12 +2,13 @@
 
 ## Unreleased
 
-- **TypeScript types.** `src/index.d.ts` declares `pageToMarkdown`, its options,
-  the full result and every stage export, through a `types` condition in
-  `exports`. The result is documented in a README table. `npm run typecheck`
-  is part of `npm run ci`: it checks a consumer file with `tsc`, and checks the
-  declarations against real output from every fixture, in both directions. No
-  runtime code changes; the bundle is the same size.
+- **TypeScript types.** Declarations for `pageToMarkdown`, its options, the full
+  result and every stage export are generated from the JSDoc in `src` into
+  `dist/types`, through a `types` condition in `exports`. The result is
+  documented in a README table. `npm run typecheck` is part of `npm run ci`: it
+  checks `src` against its JSDoc, checks a consumer file with `tsc`, and checks
+  the declarations against real output from every fixture, in both directions.
+  Only comments change in the existing modules; the bundle is the same size.
 - **Browser run.** `npm run test:browser` runs the 26 golden fixtures in
   headless Chrome or Edge, with the browser's own DOM, and checks what Node
   can't show:

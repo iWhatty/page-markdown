@@ -1,4 +1,4 @@
-// Ties src/index.d.ts to what the code really returns. Runs the pipeline over
+// Ties the declarations generated from src's JSDoc to what the code really returns. Runs the pipeline over
 // every fixture and some built pages, then writes .types-test/real-output.ts,
 // which `tsc -p test/types` checks:
 // - each output as a literal of its declared type, so an undeclared field, a

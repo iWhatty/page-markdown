@@ -42,6 +42,7 @@ function jsonLdNodes(doc) {
   return nodes;
 }
 
+/** @returns {string} */
 function nameOf(value) {
   if (!value) return "";
   if (typeof value === "string") return clean(value);

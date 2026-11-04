@@ -21,6 +21,7 @@ export { collectMetadata } from "./metadata.js";
 export { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 export { collectPageFacts, pageFactsMarkdown } from "./facts.js";
 export { removeHiddenText, hiddenTextOmissions } from "./hidden.js";
+export * from "./types.js";
 
 function documentOf(input) {
   if (input?.nodeType === 9) return input;
@@ -48,7 +49,7 @@ function hasTopHeading(markdown) {
  * @typedef {object} PageMarkdownOptions
  * @property {string} [url] page URL for absolute links (default: the document's URL)
  * @property {"full"|"no_links"|"text_only"} [mode="full"]
- * @property {"readable"|"full"|((doc: Document) => object|null)} [extract="readable"]
+ * @property {"readable"|"full"|import("./extract.js").Extractor} [extract="readable"]
  *   "readable": Readability with full-page fallback; "full": the whole body;
  *   or a custom extractor receiving a copy of the standardized document.
  * @property {number} [minExtractChars=100] below this, fall back to the full page
@@ -61,8 +62,8 @@ function hasTopHeading(markdown) {
  *   variation-selector runs and invisible operators from the Markdown (fenced
  *   code included), fullPageMarkdown and metadata; omissions count the runs
  *   removed from the Markdown
- * @property {object} [sanitize] see DEFAULT_SANITIZE_OPTIONS
- * @property {object} [readability] options passed to Readability
+ * @property {import("./types.js").SanitizeOptions} [sanitize] see DEFAULT_SANITIZE_OPTIONS
+ * @property {import("./types.js").ReadabilityOptions} [readability] options passed to Readability
  */
 
 /**
@@ -71,11 +72,13 @@ function hasTopHeading(markdown) {
  *
  * @param {Document|Element} input
  * @param {PageMarkdownOptions} [options]
+ * @returns {import("./types.js").PageMarkdownResult}
  */
 export function pageToMarkdown(input, options = {}) {
   const doc = documentOf(input);
   const url = options.url || doc.URL || doc.location?.href || "";
   const mode = options.mode || "full";
+  /** @type {string[]} */
   const warnings = [];
 
   const { document: inert, omissions } = sanitizeToInertDocument(input, options.sanitize);
@@ -106,6 +109,7 @@ export function pageToMarkdown(input, options = {}) {
     pageFacts = collectPageFacts(inert, extractedHtml);
     if (pageFacts.length) main.markdown = `${main.markdown}\n\n${pageFactsMarkdown(pageFacts)}`;
   }
+  /** @type {import("./types.js").PageMarkdownOmission[]} */
   const omissionList = [];
   if (omissions.shadowHosts) {
     omissionList.push({ kind: "shadow_content", count: omissions.shadowHosts, note: "Open shadow content omitted: capture limit" });
@@ -114,6 +118,7 @@ export function pageToMarkdown(input, options = {}) {
     omissionList.push({ kind: "json_line", count: main.removedJsonLines, note: "Large single-line JSON documents removed" });
   }
 
+  /** @type {import("./types.js").PageMarkdownResult} */
   const result = {
     version: VERSION,
     markdown: main.markdown,

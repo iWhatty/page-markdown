@@ -1,6 +1,6 @@
 {
-  // "lib" leaves out DOM on purpose: src/index.d.ts must bring it in for a
-  // Node consumer. "skipLibCheck" off also checks src/index.d.ts itself.
+  // "lib" leaves out DOM on purpose: the declarations must bring it in for a
+  // Node consumer. "skipLibCheck" off also checks the generated declarations.
   "compilerOptions": {
     "noEmit": true,
     "strict": true,

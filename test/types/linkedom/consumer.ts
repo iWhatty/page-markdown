@@ -1,6 +1,6 @@
 // The README's Node example. Apart from test/types/consumer.ts because
 // linkedom's own declarations don't compile against lib.dom, so this project
-// needs skipLibCheck, which would stop checking src/index.d.ts there.
+// needs skipLibCheck, which would stop checking the generated declarations there.
 import { pageToMarkdown } from "page-markdown";
 import { parseHTML } from "linkedom";
 
