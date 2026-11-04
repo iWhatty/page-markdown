@@ -28,10 +28,10 @@ To reproduce: `pnpm install`, `node bench/fetch-pages.mjs`, `node bench/compare.
 |---|---|---|---|
 | Contract fixtures (written with the package) | 3/15 | 7/15 | 15/15 |
 | Tuned pages (fixes were developed on these) | 8/17 | 9/17 | 17/17 |
-| Held-out pages (probes written before any engine ran) | 61/100 | 74/100 | 75/100 |
-| **All probes** | **72/132** | **90/132** | **107/132** |
+| Held-out pages (probes written before any engine ran) | 61/100 | 74/100 | 78/100 |
+| **All probes** | **72/132** | **90/132** | **110/132** |
 | Mean word recall / precision: tuned pages | 98.9% / 80.4% | 98.4% / 96.2% | 98.3% / 95.7% |
-| Mean word recall / precision: held-out pages | 98.2% / 72.1% | 85.4% / 95.6% | 77.2% / 86.6% |
+| Mean word recall / precision: held-out pages | 98.2% / 72.1% | 85.4% / 95.6% | 77.2% / 86.4% |
 
 ## page-markdown failures
 
@@ -46,11 +46,8 @@ To reproduce: `pnpm install`, `node bench/fetch-pages.mjs`, `node bench/compare.
 - forum-lobsters: Keeps commenter names
 - docs-docusaurus: Clean section heading
 - docs-docusaurus: Keeps a nested section heading
-- docs-docusaurus: Code keeps its line breaks
-- docs-docusaurus: JSX example keeps its line breaks
 - docs-starlight: Clean section heading
 - docs-starlight: No heading-anchor label
-- docs-starlight: Frontmatter example keeps its lines
 - docs-starlight: All three package-manager tabs kept
 - de-heise: Clean title heading
 - de-heise: Keeps the lead
@@ -78,8 +75,8 @@ Recall / precision against each page's reference.
 | commerce-ikea | 689 | 94.8% / 27.3% | 50.1% / 91.8% | 50.1% / 92.0% |
 | forum-arch | 14264 | 99.7% / 97.1% | 99.6% / 99.1% | 99.6% / 99.2% |
 | forum-lobsters | 300 | 100.0% / 93.8% | 36.3% / 100.0% | 36.3% / 100.0% |
-| docs-docusaurus | 906 | 96.7% / 77.6% | 92.9% / 94.0% | 92.9% / 94.1% |
-| docs-starlight | 2077 | 96.2% / 82.4% | 84.1% / 95.7% | 84.5% / 95.3% |
+| docs-docusaurus | 906 | 96.7% / 77.6% | 92.9% / 94.0% | 92.2% / 92.6% |
+| docs-starlight | 2077 | 96.2% / 82.4% | 84.1% / 95.7% | 85.4% / 94.8% |
 | de-heise | 312 | 100.0% / 35.0% | 94.2% / 100.0% | 0.0% / 0.0% |
 | ja-aozora | 5637 | 99.9% / 95.0% | 99.9% / 97.1% | 99.9% / 97.1% |
 | ar-bbc | 1255 | 95.5% / 59.4% | 95.5% / 88.3% | 95.5% / 88.3% |
@@ -190,8 +187,8 @@ Recall / precision against each page's reference.
 | docs-docusaurus: Clean section heading | ❌ | ❌ | ❌ |
 | docs-docusaurus: Keeps a nested section heading | ❌ | ❌ | ❌ |
 | docs-docusaurus: ≥ 10 fenced code blocks | ✅ | ✅ | ✅ |
-| docs-docusaurus: Code keeps its line breaks | ❌ | ❌ | ❌ |
-| docs-docusaurus: JSX example keeps its line breaks | ❌ | ❌ | ❌ |
+| docs-docusaurus: Code keeps its line breaks | ❌ | ❌ | ✅ |
+| docs-docusaurus: JSX example keeps its line breaks | ❌ | ❌ | ✅ |
 | docs-docusaurus: Keeps the rendered admonition | ✅ | ✅ | ✅ |
 | docs-docusaurus: Keeps a non-default tab panel | ✅ | ✅ | ✅ |
 | docs-docusaurus: Keeps the end | ✅ | ✅ | ✅ |
@@ -201,7 +198,7 @@ Recall / precision against each page's reference.
 | docs-starlight: Clean section heading | ✅ | ❌ | ❌ |
 | docs-starlight: No heading-anchor label | ❌ | ❌ | ❌ |
 | docs-starlight: ≥ 30 fenced code blocks | ✅ | ✅ | ✅ |
-| docs-starlight: Frontmatter example keeps its lines | ❌ | ❌ | ❌ |
+| docs-starlight: Frontmatter example keeps its lines | ❌ | ❌ | ✅ |
 | docs-starlight: All three package-manager tabs kept | ✅ | ❌ | ❌ |
 | docs-starlight: Keeps a callout | ✅ | ✅ | ✅ |
 | docs-starlight: Keeps a details block | ✅ | ✅ | ✅ |
@@ -234,60 +231,60 @@ Recall / precision against each page's reference.
 | ar-bbc: No most-read box | ❌ | ❌ | ❌ |
 | ar-bbc: No podcast promo | ❌ | ❌ | ❌ |
 | ar-bbc: No topic links footer | ❌ | ✅ | ✅ |
-| **Total** | **61/100** | **74/100** | **75/100** |
+| **Total** | **61/100** | **74/100** | **78/100** |
 
 ## Output stats
 
 | Page | Engine | Chars | Relative links | Extraction | ms |
 |---|---|---|---|---|---|
-| mdn-abortsignal | turndown-only | 26365 | 193 | full_page | 171 |
-| mdn-abortsignal | readability+turndown | 14141 | 0 | readability | 272 |
-| mdn-abortsignal | page-markdown | 14148 | 0 | readability | 342 |
-| wikipedia-markdown | turndown-only | 66390 | 74 | full_page | 283 |
-| wikipedia-markdown | readability+turndown | 41918 | 1 | readability | 470 |
-| wikipedia-markdown | page-markdown | 42130 | 0 | readability | 777 |
-| python-json-docs | turndown-only | 38140 | 115 | full_page | 120 |
-| python-json-docs | readability+turndown | 35779 | 0 | readability | 309 |
-| python-json-docs | page-markdown | 35808 | 0 | readability | 451 |
-| pg-essay | turndown-only | 68974 | 0 | full_page | 80 |
-| pg-essay | readability+turndown | 67567 | 0 | readability | 86 |
-| pg-essay | page-markdown | 67567 | 0 | readability | 225 |
-| github-readability | turndown-only | 20261 | 79 | full_page | 139 |
-| github-readability | readability+turndown | 7667 | 0 | readability | 277 |
-| github-readability | page-markdown | 7481 | 0 | readability | 548 |
-| news-guardian | turndown-only | 14987 | 118 | full_page | 70 |
-| news-guardian | readability+turndown | 4914 | 0 | readability | 100 |
-| news-guardian | page-markdown | 5026 | 0 | readability | 159 |
-| news-ars | turndown-only | 25758 | 14 | full_page | 98 |
-| news-ars | readability+turndown | 17766 | 0 | readability | 105 |
-| news-ars | page-markdown | 17609 | 0 | readability | 249 |
-| commerce-books | turndown-only | 1734 | 4 | full_page | 4 |
+| mdn-abortsignal | turndown-only | 26365 | 193 | full_page | 45 |
+| mdn-abortsignal | readability+turndown | 14141 | 0 | readability | 62 |
+| mdn-abortsignal | page-markdown | 14148 | 0 | readability | 106 |
+| wikipedia-markdown | turndown-only | 66390 | 74 | full_page | 127 |
+| wikipedia-markdown | readability+turndown | 41918 | 1 | readability | 169 |
+| wikipedia-markdown | page-markdown | 42363 | 0 | readability | 248 |
+| python-json-docs | turndown-only | 38140 | 115 | full_page | 87 |
+| python-json-docs | readability+turndown | 35779 | 0 | readability | 214 |
+| python-json-docs | page-markdown | 35808 | 0 | readability | 178 |
+| pg-essay | turndown-only | 68974 | 0 | full_page | 25 |
+| pg-essay | readability+turndown | 67567 | 0 | readability | 32 |
+| pg-essay | page-markdown | 67567 | 0 | readability | 61 |
+| github-readability | turndown-only | 20261 | 79 | full_page | 41 |
+| github-readability | readability+turndown | 7667 | 0 | readability | 67 |
+| github-readability | page-markdown | 7481 | 0 | readability | 111 |
+| news-guardian | turndown-only | 14987 | 118 | full_page | 53 |
+| news-guardian | readability+turndown | 4914 | 0 | readability | 39 |
+| news-guardian | page-markdown | 5026 | 0 | readability | 217 |
+| news-ars | turndown-only | 25758 | 14 | full_page | 40 |
+| news-ars | readability+turndown | 17766 | 0 | readability | 37 |
+| news-ars | page-markdown | 17766 | 0 | readability | 83 |
+| commerce-books | turndown-only | 1734 | 4 | full_page | 2 |
 | commerce-books | readability+turndown | 1617 | 0 | readability | 4 |
-| commerce-books | page-markdown | 1690 | 0 | readability | 6 |
-| commerce-ikea | turndown-only | 56797 | 1 | full_page | 135 |
-| commerce-ikea | readability+turndown | 3169 | 0 | readability | 132 |
-| commerce-ikea | page-markdown | 3155 | 0 | readability | 389 |
-| forum-arch | turndown-only | 101126 | 38 | full_page | 48 |
-| forum-arch | readability+turndown | 95468 | 0 | readability | 318 |
-| forum-arch | page-markdown | 95415 | 0 | readability | 513 |
-| forum-lobsters | turndown-only | 3219 | 27 | full_page | 7 |
-| forum-lobsters | readability+turndown | 621 | 0 | readability | 15 |
-| forum-lobsters | page-markdown | 621 | 0 | readability | 28 |
-| docs-docusaurus | turndown-only | 13790 | 78 | full_page | 147 |
-| docs-docusaurus | readability+turndown | 7289 | 0 | readability | 247 |
-| docs-docusaurus | page-markdown | 7306 | 0 | readability | 535 |
-| docs-starlight | turndown-only | 24983 | 49 | full_page | 143 |
-| docs-starlight | readability+turndown | 16752 | 4 | readability | 271 |
-| docs-starlight | page-markdown | 16684 | 4 | readability | 507 |
-| de-heise | turndown-only | 22381 | 80 | full_page | 49 |
-| de-heise | readability+turndown | 2510 | 0 | readability | 68 |
-| de-heise | page-markdown | 0 | 0 | full_page | 26 |
-| ja-aozora | turndown-only | 10969 | 1 | full_page | 70 |
+| commerce-books | page-markdown | 1690 | 0 | readability | 7 |
+| commerce-ikea | turndown-only | 56797 | 1 | full_page | 75 |
+| commerce-ikea | readability+turndown | 3169 | 0 | readability | 69 |
+| commerce-ikea | page-markdown | 3155 | 0 | readability | 161 |
+| forum-arch | turndown-only | 101126 | 38 | full_page | 24 |
+| forum-arch | readability+turndown | 95468 | 0 | readability | 102 |
+| forum-arch | page-markdown | 95415 | 0 | readability | 145 |
+| forum-lobsters | turndown-only | 3219 | 27 | full_page | 4 |
+| forum-lobsters | readability+turndown | 621 | 0 | readability | 7 |
+| forum-lobsters | page-markdown | 621 | 0 | readability | 12 |
+| docs-docusaurus | turndown-only | 13790 | 78 | full_page | 36 |
+| docs-docusaurus | readability+turndown | 7289 | 0 | readability | 73 |
+| docs-docusaurus | page-markdown | 7471 | 0 | readability | 113 |
+| docs-starlight | turndown-only | 24983 | 49 | full_page | 66 |
+| docs-starlight | readability+turndown | 16752 | 4 | readability | 76 |
+| docs-starlight | page-markdown | 17004 | 4 | readability | 138 |
+| de-heise | turndown-only | 22381 | 80 | full_page | 34 |
+| de-heise | readability+turndown | 2510 | 0 | readability | 29 |
+| de-heise | page-markdown | 0 | 0 | full_page | 12 |
+| ja-aozora | turndown-only | 10969 | 1 | full_page | 8 |
 | ja-aozora | readability+turndown | 10495 | 0 | readability | 20 |
-| ja-aozora | page-markdown | 10495 | 0 | readability | 81 |
-| ar-bbc | turndown-only | 21175 | 37 | full_page | 54 |
-| ar-bbc | readability+turndown | 10471 | 0 | readability | 50 |
-| ar-bbc | page-markdown | 10454 | 0 | readability | 139 |
+| ja-aozora | page-markdown | 10495 | 0 | readability | 211 |
+| ar-bbc | turndown-only | 21175 | 37 | full_page | 26 |
+| ar-bbc | readability+turndown | 10471 | 0 | readability | 29 |
+| ar-bbc | page-markdown | 10454 | 0 | readability | 65 |
 
 ## Snapshots
 

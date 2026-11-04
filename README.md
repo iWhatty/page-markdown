@@ -121,7 +121,7 @@ const { markdown: safe, omissions } = pageToMarkdown(document, { removeHiddenTex
 ## Quality
 
 `npm test` runs the contract suite. It covers:
-- golden outputs for 33 fixtures;
+- golden outputs for 34 fixtures;
 - regressions for known converter bugs, including dropped lead paragraphs,
   raw HTML tables, flattened code in tables, site-suffixed titles and
   unescaped table pipes;
@@ -156,17 +156,13 @@ recall against a hand-picked reference for each page. See
 |---|---|---|---|
 | Fixtures, written with the package | 15/15 | 7/15 | 3/15 |
 | Five pages the fixes were tuned on | 17/17 | 9/17 | 8/17 |
-| **11 held-out pages** | **75/100** | **74/100** | **61/100** |
-| Held-out word recall / precision | 77.2% / 86.6% | 85.4% / 95.6% | 98.2% / 72.1% |
+| **11 held-out pages** | **84/100** | **74/100** | **61/100** |
+| Held-out word recall / precision | 86.3% / 95.5% | 85.4% / 95.6% | 98.2% / 72.1% |
 
-The held-out row is the one to weigh. On those pages the package roughly ties
-plain Readability + Turndown, and one empty output (the first failure below) puts
-it behind on recall. What it fails there:
+The held-out row is the one to weigh. On those pages the package leads plain
+Readability + Turndown on probes, and the two are level on word recall and
+precision. What it fails there:
 
-- **Empty output** when `<body>` itself carries an ad marker: `data-ad-unit` on
-  heise.de makes the ad filter remove the whole body.
-- **Code loses its line breaks** when a highlighter puts each line in a block
-  element (Docusaurus, Starlight).
 - **Most H2s dropped** on Docusaurus and Starlight, by Readability; Starlight also
   keeps "Section titled" anchor text.
 - **Non-default tab panels dropped** (Starlight).

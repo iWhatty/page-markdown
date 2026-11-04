@@ -27,8 +27,11 @@ Content-fidelity fixes, each with a new fixture run in Node and in the browser:
   dropped.
 - **`<base href>` is respected** for links and images.
 - **A linked image with empty alt is kept.**
+- **An ad marker on `<body>` no longer empties the page.** Sites put page-wide ad
+  settings there (`data-ad-unit` on heise.de), and the ad filter removed the whole
+  body. `<html>` and `<body>` are never treated as ads; ads inside them still are.
 - `stats.markdownChars` now matches the returned Markdown.
-- The browser bundle grows to about 67.1 KB minified; the size ceiling is now
+- The browser bundle grows to about 67.2 KB minified; the size ceiling is now
   68 KB.
 
 - **TypeScript types.** Declarations for `pageToMarkdown`, its options, the full
@@ -40,7 +43,7 @@ Content-fidelity fixes, each with a new fixture run in Node and in the browser:
   Only comments change in the existing modules; the bundle is the same size.
 - **Bench.** `npm run bench` adds a Readability + Turndown baseline, word recall
   and precision, and 11 held-out pages whose probes were committed before any
-  engine ran on them. The headline changes from 32/32 against 11/32 to 75/100
+  engine ran on them. The headline changes from 32/32 against 11/32 to 84/100
   against 74/100 and 61/100 on the held-out pages; see `bench/RESULTS.md` for the
   failures. `bench/fetch-pages.mjs` now decodes by declared charset and keeps the
   last good copy when a fetch fails.
