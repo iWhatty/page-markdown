@@ -2,7 +2,36 @@
 
 ## Unreleased
 
-- **Browser run.** `npm run test:browser` runs the 26 golden fixtures in
+Content-fidelity fixes, each with a new fixture run in Node and in the browser:
+
+- **Code blocks keep their lines.** Lines marked up with `<br>` or block
+  elements (Docusaurus and similar highlighters) came out joined on one line.
+- **Copy buttons stay out of code.** A `<button>` inside `<pre>` leaked its
+  label into the code and lost the language. Whitespace around the `<code>`
+  no longer loses the fence.
+- **Text beside a heading is kept.** A `<div>` holding a heading and bare text
+  was replaced by the heading, deleting the text.
+- **Row spans keep columns aligned.** Later cells shifted left. A spanned cell
+  now repeats in each row of a GFM table, and block-rendered tables label cells
+  by their true column.
+- **Large tables no longer freeze the page.** Table checks ran once per cell,
+  so time grew with the square of the size: 500 rows took about 8 seconds in
+  Chrome.
+- **Modes leave more code alone.** Fences in list items and blockquotes, and
+  inline code, were edited by `no_links`, `text_only` and blank-line cleanup.
+- **A lead paragraph is no longer doubled** when it starts with a link or holds
+  an entity such as `&lt;`.
+- **Script links are caught however they are written.** `javascript:` with an
+  embedded newline, tab or control character got through, as did `vbscript:`
+  and `data:`. These links keep only their text. Images with such a source are
+  dropped.
+- **`<base href>` is respected** for links and images.
+- **A linked image with empty alt is kept.**
+- `stats.markdownChars` now matches the returned Markdown.
+- The browser bundle grows to about 67.1 KB minified; the size ceiling is now
+  68 KB.
+
+- **Browser run.** `npm run test:browser` runs the golden fixtures in
   headless Chrome or Edge, with the browser's own DOM, and checks what Node
   can't show:
   - the live document is left unmodified;
@@ -10,9 +39,8 @@
     included;
   - closed shadow roots stay out.
 
-  It is part of `npm run ci` and needs no new dependencies. All 31 checks pass
-  in Chrome 156 and Edge 156 with no code changes, so the package's output in
-  a browser matches its Node output.
+  It is part of `npm run ci` and needs no new dependencies. The package's output
+  in Chrome and Edge matches its Node output.
 
 ## 0.1.4 — 2026-11-02
 

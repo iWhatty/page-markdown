@@ -34,6 +34,16 @@ function toMarkdown(html, mode) {
   return { markdown: applyMode(markdown, mode), removedJsonLines, convertedChars: converted.length };
 }
 
+// What relative links resolve against: the page's <base href>, else its URL.
+function baseUrl(doc, url) {
+  const href = doc.querySelector?.("base[href]")?.getAttribute("href");
+  try {
+    return href ? new URL(href, url || undefined).href : url;
+  } catch {
+    return url;
+  }
+}
+
 // A top-level heading in the prose; a "# comment" line in fenced code is not one.
 function hasTopHeading(markdown) {
   let found = false;
@@ -79,7 +89,7 @@ export function pageToMarkdown(input, options = {}) {
   const warnings = [];
 
   const { document: inert, omissions } = sanitizeToInertDocument(input, options.sanitize);
-  const standardization = standardizeDocument(inert, { url });
+  const standardization = standardizeDocument(inert, { url: baseUrl(doc, url) });
   const extraction = extractContent(inert, {
     extract: options.extract,
     minExtractChars: options.minExtractChars,
@@ -158,5 +168,6 @@ export function pageToMarkdown(input, options = {}) {
   if (omissions.shadowHosts) {
     result.markdown += `\n\n_Open shadow content omitted: capture limit (${omissions.shadowHosts} host(s))._`;
   }
+  result.stats.markdownChars = result.markdown.length;
   return result;
 }

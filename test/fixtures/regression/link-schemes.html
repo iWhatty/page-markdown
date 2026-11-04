@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><title>Link schemes and linked images</title></head>
+<body>
+<main>
+<p><a href="javascript:alert(1)">plain script</a></p>
+<p><a href="java&#10;script:alert(2)">newline script</a></p>
+<p><a href="java&#9;script:alert(3)">tab script</a></p>
+<p><a href="&#1;javascript:alert(4)">control script</a></p>
+<p><a href="VBScript:msgbox(5)">vb script</a></p>
+<p><a href="data:text/html,hello">data page</a></p>
+<p><a href="/ok">a normal link</a> and <a href="mailto:a@example.com">an address</a></p>
+<p><img src="java&#10;script:alert(6)" alt="script image"></p>
+<p><a href="/full.jpg"><img src="/thumb.jpg" alt=""></a></p>
+<p><a href="/empty"></a>after an empty link</p>
+</main>
+</body>
+</html>

@@ -2,6 +2,7 @@
 // license, downloads), price and spec boxes, definition lists, two-column
 // tables. Readability keeps the article and drops these asides, which is right
 // for reading and wrong when the question is "which version?". Opt-in.
+import { htmlText } from "./refine.js";
 
 const MAX_FACTS = 24;
 const MAX_LABEL_CHARS = 40;
@@ -59,8 +60,7 @@ function escapeRegExp(text) {
  * @returns {Array<{ label: string, value: string }>} facts absent from the article
  */
 export function collectPageFacts(doc, articleHtml) {
-  const article = squash(String(articleHtml || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&"));
+  const article = squash(htmlText(articleHtml));
   const articleCompact = compact(article);
   const pairs = Array.from(candidatePairs(doc), ([label, value, el]) => [squash(label).replace(/\s*[:：¶#§]\s*$/, ""), value, el]);
   // A "value" that is the next section's label is a heading run, not a fact.

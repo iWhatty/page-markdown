@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><title>Code line markup</title></head>
+<body>
+<main>
+<h2>Line break elements</h2>
+<div class="language-bash codeBlockContainer"><div class="codeBlockContent"><pre tabindex="0" class="prism-code language-bash"><code class="codeBlockLines"><div class="token-line"><span class="token plain">npm init</span><br></div><div class="token-line"><span class="token plain">npm start</span><br></div></code></pre></div></div>
+<h2>Inline lines with breaks</h2>
+<pre><code class="language-js"><span class="token-line">const a = 1;<br></span><span class="token-line"><br></span><span class="token-line">const b = 2;<br></span></code></pre>
+<h2>Nested block lines</h2>
+<pre data-language="yaml"><code><div class="ec-line"><div class="code">key: value</div></div><div class="ec-line"><div class="code">  nested: true</div></div></code></pre>
+<h2>A bare break in pre</h2>
+<pre>first<br>second</pre>
+<h2>A copy button</h2>
+<pre><code class="language-sh">npm install</code><button type="button">Copy</button></pre>
+<h2>Whitespace before code</h2>
+<pre>
+  <code class="language-py">print("hi")</code>
+</pre>
+<h2>Plain code keeps its own lines</h2>
+<pre><code class="language-text">one
+
+two</code></pre>
+</main>
+</body>
+</html>

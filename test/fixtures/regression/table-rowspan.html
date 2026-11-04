@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head><title>Row spans</title></head>
+<body>
+<main>
+<h2>A row span in the first column</h2>
+<table>
+<tr><th>Region</th><th>City</th><th>Pop</th></tr>
+<tr><td rowspan="2">West</td><td>LA</td><td>4</td></tr>
+<tr><td>SF</td><td>1</td></tr>
+<tr><td>East</td><td>NY</td><td>8</td></tr>
+</table>
+<h2>A row span in the last column, and one with a column span</h2>
+<table>
+<tr><th>A</th><th>B</th><th>C</th><th>D</th></tr>
+<tr><td>1</td><td colspan="2" rowspan="2">wide</td><td rowspan="2">tall</td></tr>
+<tr><td>2</td></tr>
+<tr><td>3</td><td>x</td><td>y</td><td>z</td></tr>
+</table>
+<h2>Two header rows</h2>
+<table>
+<thead>
+<tr><th rowspan="2">Name</th><th colspan="2">Sales</th></tr>
+<tr><th>Q1</th><th>Q2</th></tr>
+</thead>
+<tbody>
+<tr><td>Widgets</td><td>1</td><td>2</td></tr>
+</tbody>
+</table>
+<h2>A span stops at its row group</h2>
+<table>
+<thead><tr><th rowspan="5">H</th><th>I</th></tr></thead>
+<tbody><tr><td>a</td><td>b</td></tr></tbody>
+</table>
+<h2>A table of code keeps labels in the right column</h2>
+<table>
+<tr><th>Lang</th><th>Kind</th><th>Example</th></tr>
+<tr><td rowspan="2">Py</td><td>Print</td><td><pre><code>print(1)</code></pre></td></tr>
+<tr><td>Loop</td><td><pre><code>for x in y:
+    pass</code></pre></td></tr>
+</table>
+</main>
+</body>
+</html>

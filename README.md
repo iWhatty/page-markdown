@@ -14,7 +14,8 @@ live Document
                   javascript: links removed; absolute links and images; lazy images resolved
   → extract       Mozilla Readability on a copy; full-page fallback when it finds too little;
                   a dropped lead paragraph restored; a clean title heading
-  → convert       Turndown + GitHub-flavoured tables, strikethrough and task lists; never raw HTML
+  → convert       Turndown + GitHub-flavoured tables, strikethrough and task lists; tables never
+                  come out as raw HTML
   → clean         fence-safe; keeps short lines and <br> hard breaks; never cuts text
   → hidden text   opt-in (removeHiddenText): tag-character text, variation-selector runs and
                   invisible operators removed, fenced code included; counted in omissions
@@ -88,7 +89,7 @@ const { markdown: safe, omissions } = pageToMarkdown(document, { removeHiddenTex
 ## Quality
 
 `npm test` runs the contract suite. It covers:
-- golden outputs for 26 fixtures;
+- golden outputs for 33 fixtures;
 - regressions for known converter bugs, including dropped lead paragraphs,
   raw HTML tables, flattened code in tables, site-suffixed titles and
   unescaped table pipes;
@@ -112,7 +113,7 @@ page body). It runs 15 fixture checks and 17 probes on five real pages, which
 `node bench/fetch-pages.mjs` fetches first. See
 [bench/RESULTS.md](bench/RESULTS.md): currently **32/32 against 11/32**.
 
-Browser bundle: about 65 KB minified, 23 KB gzip (`npm run size`, ceiling 66 KB
+Browser bundle: about 67 KB minified, 24 KB gzip (`npm run size`, ceiling 68 KB
 minified). Readability is most of it.
 
 `npm run ci` runs the contract suite, the browser run and the size check, and must exit 0
@@ -133,6 +134,9 @@ before a commit. It runs locally; the repo deliberately has no cloud CI.
   legitimate in some scripts: ideographic variation selectors in CJK names and
   the Mongolian free variation selectors.
 - **Iframes and closed shadow roots are not captured.**
+- **Text that spells out HTML stays literal.** `&lt;img onerror=…&gt;` in page
+  text comes out as `<img onerror=…>`. Sanitize the Markdown before rendering it
+  as HTML.
 
 ## Licence
 

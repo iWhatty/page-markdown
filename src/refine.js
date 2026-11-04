@@ -11,9 +11,14 @@ function norm(text) {
   return String(text || "").replace(/\s+/g, " ").replace(/(\.\.\.|…)\s*$/, "").trim().toLowerCase();
 }
 
-function textOf(html) {
-  return norm(String(html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&"));
+/** The text of serialized HTML: tags to spaces, the entities serializers write decoded. */
+export function htmlText(html) {
+  return String(html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 }
+
+// Tags became spaces in htmlText, so "<a>Foo</a>, the" reads "Foo , the".
+const withoutSpaces = (text) => text.replace(/\s+/g, "");
 
 function startsAlike(a, b) {
   const n = Math.min(MATCH_CHARS, a.length, b.length);
@@ -34,12 +39,12 @@ function startsAlike(a, b) {
 export function recoverLeadParagraph(html, doc, description) {
   const lead = norm(description);
   if (lead.length < MIN_LEAD_CHARS) return { html, recovered: false };
-  const extracted = textOf(html);
+  const extracted = withoutSpaces(norm(htmlText(html)));
   const paragraphs = Array.from(doc.querySelectorAll?.("p") || []).slice(0, 300);
   for (const p of paragraphs) {
     const text = norm(p.textContent);
     if (text.length < MIN_LEAD_CHARS || !startsAlike(text, lead)) continue;
-    if (extracted.includes(text.slice(0, 80))) return { html, recovered: false };
+    if (extracted.includes(withoutSpaces(text.slice(0, 80)))) return { html, recovered: false };
     return { html: `${p.outerHTML}\n${html}`, recovered: true };
   }
   return { html, recovered: false };

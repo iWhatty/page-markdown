@@ -13,6 +13,7 @@ export function mapOutsideFences(markdown, transform) {
   const blocks = [];
   let lines = [];
   let fence = null;
+  let indent = 0;
   const flush = (isCode) => {
     if (!lines.length) return;
     const text = lines.join("\n");
@@ -20,12 +21,14 @@ export function mapOutsideFences(markdown, transform) {
     lines = [];
   };
   for (const line of String(markdown).split("\n")) {
-    const match = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-    if (!fence && match && !(match[1][0] === "`" && match[2].includes("`"))) {
+    // Any indent or quote prefix: Turndown nests code in lists and blockquotes.
+    const match = line.match(/^([ >]*)(`{3,}|~{3,})(.*)$/);
+    if (!fence && match && !(match[2][0] === "`" && match[3].includes("`"))) {
       flush(false);
-      fence = match[1];
+      fence = match[2];
+      indent = match[1].length;
       lines.push(line);
-    } else if (fence && match && match[1][0] === fence[0] && match[1].length >= fence.length && !match[2].trim()) {
+    } else if (fence && match && match[1].length <= indent + 3 && match[2][0] === fence[0] && match[2].length >= fence.length && !match[3].trim()) {
       lines.push(line);
       flush(true);
       fence = null;
@@ -81,8 +84,13 @@ export function cleanMarkdown(markdown) {
 // Link text may hold escaped brackets and whole images: [![alt](img)](href)
 // keeps the image, not "![alt" pointing at href.
 const LINK_TARGET = String.raw`\((?:[^()\s]|\([^()]*\))+(?:\s+"[^"]*")?\)`;
-const INLINE_LINK = new RegExp(String.raw`(!?)\[((?:\\.|!\[[^\]]*\]${LINK_TARGET}|[^\[\]\\])*)\]${LINK_TARGET}`, "g");
-const stripInlineLinks = (md) => md.replace(INLINE_LINK, (all, bang, text) => (bang ? all : text));
+const INLINE_LINK = new RegExp(String.raw`(!?)\[((?:\\.|!\[[^\]]*\]${LINK_TARGET}|[^\[\]\\])*)\]${LINK_TARGET}`);
+// Replaces matches of `pattern`, leaving inline code spans as they are.
+const replaceOutsideCode = (md, pattern, replace) => md.replace(
+  new RegExp(`\`+[^\`\\n]*\`+|${pattern.source}`, "g"),
+  (all, ...groups) => (all[0] === "`" ? all : replace(all, ...groups)),
+);
+const stripInlineLinks = (md) => replaceOutsideCode(md, INLINE_LINK, (all, bang, text) => (bang ? all : text));
 const dropReferenceDefs = (md) => md.replace(/^\s{0,3}\[[^\]]+]:\s+\S+.*$/gm, "");
 const stripStructure = (md) => md
   .replace(/^\s{0,3}#{1,6}\s+/gm, "")
@@ -90,8 +98,12 @@ const stripStructure = (md) => md
   .replace(/^\s*\d+\.\s+/gm, "")
   .replace(/^\s{0,3}>\s?/gm, "")
   .replace(/^\s*([-_*])\s*(?:\1\s*){2,}$/gm, "");
-const stripEmphasis = (md) => md.replace(/(\*\*|__)(.+?)\1/g, "$2").replace(/(?<![\w*])([*_])(?!\s)(.+?)(?<!\s)\1(?![\w*])/g, "$2");
-const stripImages = (md) => md.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
+const stripEmphasis = (md) => replaceOutsideCode(
+  replaceOutsideCode(md, /(\*\*|__)(.+?)\1/, (all, mark, text) => text),
+  /(?<![\w*])([*_])(?!\s)(.+?)(?<!\s)\1(?![\w*])/,
+  (all, mark, text) => text,
+);
+const stripImages = (md) => replaceOutsideCode(md, /!\[([^\]]*)\]\([^)]*\)/, (all, alt) => alt);
 
 /**
  * Output modes. "no_links" keeps link text. "text_only" also drops headings,

@@ -65,25 +65,74 @@ function spanOf(cell) {
   return Number.isFinite(span) && span > 1 ? Math.min(span, 50) : 1;
 }
 
-// Layout tables (nesting, a single cell, a single column) read better as
-// blocks than as a grid.
-function isLayoutTable(table) {
-  if (table.querySelector?.("table")) return true;
-  const rows = tableRows(table);
-  if (!rows.length) return true;
-  const widest = Math.max(...rows.map((row) => rowCells(row).reduce((sum, cell) => sum + spanOf(cell), 0)));
-  return widest <= 1;
+// Each cell's column, and the row-spanned cells that fill the slots before it
+// (or at the row's end): null for the rest of a cell's column span. A span
+// stops at its row group.
+function tableGrid(rows) {
+  const columns = new Map();
+  const before = new Map();
+  const after = new Map();
+  let carry = [];
+  let group = null;
+  for (const row of rows) {
+    if (row.parentNode !== group) carry = [];
+    group = row.parentNode;
+    let column = 0;
+    let slots = [];
+    const take = (gaps) => {
+      while (carry[column]?.left > 0 || (gaps && column < carry.length)) {
+        const entry = carry[column];
+        slots.push(entry?.left > 0 ? entry.cell : null);
+        if (entry?.left > 0) entry.left -= 1;
+        column += 1;
+      }
+    };
+    for (const cell of rowCells(row)) {
+      slots = [];
+      take();
+      before.set(cell, slots);
+      columns.set(cell, column);
+      const left = Number.parseInt(cell.getAttribute?.("rowspan") || "1", 10) - 1;
+      const span = spanOf(cell);
+      for (let i = 0; i < span; i += 1) {
+        if (left > 0) carry[column + i] = { cell: i ? null : cell, left };
+      }
+      column += span;
+    }
+    slots = [];
+    take(true);
+    after.set(row, slots);
+  }
+  return { columns, before, after };
 }
 
-// A GFM cell is one line, so a data table holding code blocks is rendered as
-// blocks too, each cell under its column's header: the code stays fenced.
-function isBlockTable(table) {
-  return isLayoutTable(table) || Boolean(table.querySelector?.("pre"));
+const tables = new WeakMap();
+
+// Worked out once per table: cell and row rules run for every cell.
+function tableInfo(table) {
+  let info = tables.get(table);
+  if (info) return info;
+  const rows = tableRows(table);
+  // Layout tables (nesting, a single cell, a single column) read better as
+  // blocks than as a grid.
+  const layout = Boolean(table.querySelector?.("table")) || !rows.length
+    || Math.max(...rows.map((row) => rowCells(row).reduce((sum, cell) => sum + spanOf(cell), 0))) <= 1;
+  // A GFM cell is one line, so a data table holding code blocks is rendered as
+  // blocks too, each cell under its column's header: the code stays fenced.
+  const block = layout || Boolean(table.querySelector?.("pre"));
+  info = { layout, block, header: columnHeaders(rows[0]), text: new Map(), ...tableGrid(rows) };
+  tables.set(table, info);
+  return info;
 }
 
 function isBlockCell(node) {
   const table = closest(node, "TABLE");
-  return !table || isBlockTable(table);
+  return !table || tableInfo(table).block;
+}
+
+// A row-spanned cell repeats in each row, so a row reads whole by itself.
+function slotsMarkdown(slots, info) {
+  return slots.map((cell) => ` ${info.text.get(cell) || ""} |`).join("");
 }
 
 function labelText(cell) {
@@ -92,8 +141,7 @@ function labelText(cell) {
 
 // A first row of two or more <th>: column headers. (A single spanning <th>
 // is a title, not a header.)
-function columnHeaders(table) {
-  const first = tableRows(table)[0];
+function columnHeaders(first) {
   const cells = first ? rowCells(first) : [];
   return cells.length > 1 && cells.every((cell) => cell.nodeName === "TH") ? first : null;
 }
@@ -108,16 +156,13 @@ function rowHeader(row) {
 // label; "" for layout tables and unlabelled cells.
 function cellLabel(cell) {
   const table = closest(cell, "TABLE");
-  if (!table || isLayoutTable(table)) return "";
+  const info = table && tableInfo(table);
+  if (!info || info.layout) return "";
   const row = cell.parentNode;
-  const header = columnHeaders(table);
+  const { header } = info;
   if (header) {
     if (row === header) return null;
-    let column = 0;
-    for (const other of rowCells(row)) {
-      if (other === cell) break;
-      column += spanOf(other);
-    }
+    const column = info.columns.get(cell);
     let start = 0;
     for (const th of rowCells(header)) {
       if (column < start + spanOf(th)) return labelText(th);
@@ -152,15 +197,19 @@ function tableRules(turndown) {
         if (label === null) return "";
         return label ? `\n\n**${createTurndown().escape(label)}**\n\n${content}\n\n` : `\n\n${content}\n\n`;
       }
+      const info = tableInfo(closest(node, "TABLE"));
+      const text = cellText(content);
+      info.text.set(node, text);
       const pad = " |   ".repeat(spanOf(node) - 1);
-      return ` ${cellText(content)}${pad} |`;
+      return `${slotsMarkdown(info.before.get(node), info)} ${text}${pad} |`;
     },
   });
   turndown.addRule("pmTableRow", {
     filter: "tr",
     replacement(content, node) {
       if (isBlockCell(node)) return `\n${content}\n`;
-      return `\n|${content}`;
+      const info = tableInfo(closest(node, "TABLE"));
+      return `\n|${content}${slotsMarkdown(info.after.get(node), info)}`;
     },
   });
   turndown.addRule("pmTableSection", {
@@ -172,7 +221,7 @@ function tableRules(turndown) {
   turndown.addRule("pmTable", {
     filter: "table",
     replacement(content, node) {
-      if (isBlockTable(node)) return `\n\n${content}\n\n`;
+      if (tableInfo(node).block) return `\n\n${content}\n\n`;
       const lines = content.split("\n").filter((line) => line.startsWith("|"));
       if (!lines.length) return "\n\n";
       const width = Math.max(...lines.map((line) => line.split(/(?<!\\)\|/).length - 2));

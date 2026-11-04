@@ -15,6 +15,10 @@ const NON_LANGUAGES = new Set(["default", "none", "text", "plain", "plaintext", 
 const EDIT_WIDGETS = ".mw-editsection, .headerlink, .anchor, .heading-anchor, a.anchor, [aria-hidden='true'] a";
 // Content without text that a heading wrapper may still hold.
 const MEDIA = "img, picture, video, audio";
+// Highlighters mark up each code line with one of these.
+const CODE_LINE_ELEMENTS = new Set(["div", "p", "li", "tr", "section"]);
+// As URL parsers read a scheme: control characters and spaces don't count.
+const isUnsafeUrl = (value) => /^(?:javascript|vbscript|data):/i.test(String(value).replace(/[\x00-\x20]+/g, ""));
 
 function resolveUrl(value, base) {
   const raw = String(value || "").trim();
@@ -44,7 +48,7 @@ function languageFrom(el, maxDepth = 3) {
 
 function hasMeaningfulContent(el) {
   if ((el.textContent || "").trim()) return true;
-  return Boolean(el.querySelector?.("img[alt]:not([alt='']), svg title"));
+  return Boolean(el.querySelector?.("img, svg title"));
 }
 
 /**
@@ -62,7 +66,7 @@ function standardizeImages(doc, base, stats) {
       }
     }
     const current = img.getAttribute("src") || "";
-    if (!current || current.startsWith("data:")) {
+    if (!current || isUnsafeUrl(current)) {
       img.remove();
       stats.inlineImagesDropped += 1;
       continue;
@@ -74,7 +78,7 @@ function standardizeImages(doc, base, stats) {
 function standardizeLinks(doc, base, stats) {
   for (const a of Array.from(doc.querySelectorAll("a"))) {
     const href = a.getAttribute("href") || "";
-    if (/^\s*javascript:/i.test(href)) {
+    if (isUnsafeUrl(href)) {
       a.replaceWith(...Array.from(a.childNodes));
       stats.scriptLinksUnwrapped += 1;
       continue;
@@ -88,20 +92,41 @@ function standardizeLinks(doc, base, stats) {
   }
 }
 
+/** Text of a code block, with <br> and block-level lines as line breaks. */
+function codeText(root) {
+  let text = "";
+  const walk = (node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === 3) text += child.nodeValue;
+      else if (child.nodeType !== 1) continue;
+      else if (child.localName === "br") text += "\n";
+      else {
+        const block = CODE_LINE_ELEMENTS.has(child.localName);
+        if (block && text && !text.endsWith("\n")) text += "\n";
+        walk(child);
+        if (block && text && !text.endsWith("\n")) text += "\n";
+      }
+    }
+  };
+  walk(root);
+  return text;
+}
+
 /** <pre> without <code> (and code without a language) gets a language-tagged <code>. */
 function standardizeCode(doc, stats) {
   for (const pre of Array.from(doc.querySelectorAll("pre"))) {
-    const lang = languageFrom(pre);
-    let code = Array.from(pre.children || []).length === 1 && pre.firstElementChild?.localName === "code"
-      ? pre.firstElementChild
-      : null;
-    if (!code) {
-      code = doc.createElement("code");
-      code.textContent = pre.textContent || "";
-      while (pre.firstChild) pre.removeChild(pre.firstChild);
-      pre.appendChild(code);
-      stats.preWrapped += 1;
-    }
+    for (const button of Array.from(pre.querySelectorAll("button"))) button.remove();
+    const inner = pre.querySelector("code");
+    const lang = languageFrom(inner || pre, inner ? 4 : 3);
+    // One <code> and only whitespace around it: that <code> is the block.
+    const sole = pre.children.length === 1 && pre.firstElementChild === inner
+      && !(pre.textContent || "").replace(inner.textContent || "", "").trim();
+    const code = sole ? inner : doc.createElement("code");
+    if (!sole) stats.preWrapped += 1;
+    // Turndown reads textContent, so lines kept apart by markup become text.
+    code.textContent = codeText(sole ? inner : pre);
+    while (pre.firstChild) pre.removeChild(pre.firstChild);
+    pre.appendChild(code);
     if (lang && !/(?:^|\s)language-/.test(code.getAttribute("class") || "")) {
       code.setAttribute("class", `${code.getAttribute("class") || ""} language-${lang}`.trim());
     }
@@ -124,7 +149,8 @@ function standardizeHeadings(doc, stats) {
     const parent = heading.parentElement;
     if (!parent || parent.localName !== "div") continue;
     const others = Array.from(parent.children).filter((el) => el !== heading);
-    if (others.every((el) => !(el.textContent || "").trim() && !el.matches?.(MEDIA) && !el.querySelector?.(MEDIA))) {
+    const hasBareText = Array.from(parent.childNodes).some((node) => node.nodeType === 3 && node.nodeValue.trim());
+    if (!hasBareText && others.every((el) => !(el.textContent || "").trim() && !el.matches?.(MEDIA) && !el.querySelector?.(MEDIA))) {
       parent.replaceWith(heading);
       stats.headingsUnwrapped += 1;
     }

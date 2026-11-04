@@ -13,6 +13,8 @@ import path from "node:path";
 import { parseHTML } from "linkedom";
 
 import { pageToMarkdown } from "../src/index.js";
+import { cleanMarkdown } from "../src/clean.js";
+import { htmlToMarkdown } from "../src/convert.js";
 import { GOLDEN_OPTIONS, GOLDEN_DIRS } from "./golden-options.mjs";
 
 const FIXTURES = "test/fixtures";
@@ -452,4 +454,119 @@ test("a table holding code blocks keeps them fenced, each under its header", () 
   assert.match(markdown, /^# Markdown syntax\n/);
   assert.match(markdown, /^\| Variant \| Tables \|\n\| --- \| --- \|$/m);
   assert.doesNotMatch(markdown, /<\/?(table|tr|td|th|pre)\b/);
+});
+
+test("code lines marked up with <br> or block elements keep their breaks", () => {
+  const { markdown } = run("regression/code-line-markup.html", { extract: "full" });
+  assert.equal(fencedBlock(markdown, "bash"), "npm init\nnpm start");
+  assert.equal(fencedBlock(markdown, "js"), "const a = 1;\n\nconst b = 2;");
+  assert.equal(fencedBlock(markdown, "yaml"), "key: value\n  nested: true");
+  assert.match(markdown, /```\nfirst\nsecond\n```/);
+});
+
+test("a copy button stays out of the code, and leading whitespace keeps the fence", () => {
+  const { markdown } = run("regression/code-line-markup.html", { extract: "full" });
+  assert.equal(fencedBlock(markdown, "sh"), "npm install");
+  assert.equal(fencedBlock(markdown, "py"), 'print("hi")');
+});
+
+test("text beside a heading in a wrapper is kept", () => {
+  const { markdown } = run("regression/heading-with-text.html", { extract: "full" });
+  assert.match(markdown, /#### Note\n\nRemember to restart\. {2}\nAlso clear caches\./);
+  assert.match(markdown, /^## A wrapped heading$/m);
+});
+
+test("a row span repeats its cell, so later cells stay in their columns", () => {
+  const { markdown } = run("regression/table-rowspan.html", { extract: "full" });
+  assert.match(markdown, /^\| West \| LA \| 4 \|$/m);
+  assert.match(markdown, /^\| West \| SF \| 1 \|$/m);
+  assert.match(markdown, /^\| East \| NY \| 8 \|$/m);
+  assert.match(markdown, /^\| 1 \| wide \| +\| tall \|$/m);
+  assert.match(markdown, /^\| 2 \| wide \| +\| tall \|$/m);
+  assert.match(markdown, /^\| Name \| Q1 \| Q2 \|$/m);
+});
+
+test("a table of code labels cells by column, row spans counted", () => {
+  const { markdown } = run("regression/table-rowspan.html", { extract: "full" });
+  assert.match(markdown, /\*\*Kind\*\*\n\nLoop\n+\*\*Example\*\*\n+```\nfor x in y:\n {4}pass\n```/);
+});
+
+test("large tables convert in linear time", () => {
+  const cells = Array.from({ length: 8 }, (_, i) => `<td>c${i}</td>`).join("");
+  const rows = (n) => `<table><tr>${"<th>h</th>".repeat(8)}</tr>${`<tr>${cells}</tr>`.repeat(n)}</table>`;
+  const started = performance.now();
+  const markdown = htmlToMarkdown(rows(2000));
+  const elapsed = performance.now() - started;
+  assert.equal(markdown.split("\n").length, 2002);
+  // Quadratic table checks took minutes here; well under that leaves room for slow machines.
+  assert.ok(elapsed < 5000, `2000 rows took ${Math.round(elapsed)} ms`);
+});
+
+test("modes leave code in list items and blockquotes verbatim", () => {
+  for (const mode of ["no_links", "text_only"]) {
+    const { markdown } = run("regression/list-code-text-only.html", { extract: "full", mode });
+    assert.match(markdown, /^ *- name: a$/m, mode);
+    assert.match(markdown, /^ *link: \[x\]\(http:\/\/y\)$/m, mode);
+    assert.match(markdown, /^ *1\. \*p\* = 2\n\s*\n\s*\n\s*\n *end$/m, mode);
+    assert.match(markdown, /- deep \[z\]\(http:\/\/z\)/, mode);
+    assert.match(markdown, /- quoted \[q\]\(http:\/\/q\)/, mode);
+  }
+});
+
+test("modes leave inline code verbatim", () => {
+  const noLinks = run("regression/list-code-text-only.html", { extract: "full", mode: "no_links" }).markdown;
+  assert.match(noLinks, /`\[a\]\(b\)`/);
+  assert.match(noLinks, /read the \*\*docs\*\*\./);
+  const textOnly = run("regression/list-code-text-only.html", { extract: "full", mode: "text_only" }).markdown;
+  assert.match(textOnly, /`__init__`/);
+  assert.match(textOnly, /`\[a\]\(b\)`/);
+  assert.match(textOnly, /read the docs\./);
+});
+
+test("cleaning leaves code in list items verbatim", () => {
+  const { markdown } = cleanMarkdown("1.  Step\n\n    ```\n    a   \n\n\n\n    b\n    ```");
+  assert.equal(markdown, "1.  Step\n\n    ```\n    a   \n\n\n\n    b\n    ```");
+  // More indent than a closing fence may have: still code.
+  const nested = "```\n    ```\n\n\n\nkept\n```\n\n\n\nafter";
+  assert.equal(cleanMarkdown(nested).markdown, "```\n    ```\n\n\n\nkept\n```\n\nafter");
+});
+
+test("a lead starting with a link or holding an entity is not doubled", () => {
+  const result = run("regression/lead-with-link.html");
+  assert.equal(result.markdown.match(/the best library/g).length, 1);
+  assert.equal(result.extraction.leadRecovered, undefined);
+});
+
+test("script and data links keep only their text, however the scheme is written", () => {
+  const { markdown } = run("regression/link-schemes.html", { extract: "full" });
+  assert.doesNotMatch(markdown, /\]\(\s*(?:javascript|vbscript|data)/i);
+  for (const text of ["plain script", "newline script", "tab script", "control script", "vb script", "data page"]) {
+    assert.match(markdown, new RegExp(`^${text}$`, "m"), text);
+  }
+  assert.doesNotMatch(markdown, /script image/);
+  assert.match(markdown, /\[a normal link\]\(https:\/\/example\.com\/ok\)/);
+  assert.match(markdown, /\[an address\]\(mailto:a@example\.com\)/);
+});
+
+test("a linked image with empty alt is kept; a truly empty link is not", () => {
+  const { markdown } = run("regression/link-schemes.html", { extract: "full" });
+  assert.match(markdown, /\[!\[\]\(https:\/\/example\.com\/thumb\.jpg\)\]\(https:\/\/example\.com\/full\.jpg\)/);
+  assert.doesNotMatch(markdown, /\/empty/);
+});
+
+test("links and images resolve against <base href>", () => {
+  const { markdown } = run("regression/base-href.html", { extract: "full" });
+  assert.match(markdown, /\(https:\/\/cdn\.example\.org\/root\/docs\/x\)/);
+  assert.match(markdown, /\(https:\/\/cdn\.example\.org\/abs\)/);
+  assert.match(markdown, /\(https:\/\/other\.example\/y\)/);
+  assert.match(markdown, /\(https:\/\/cdn\.example\.org\/root\/pics\/a\.png\)/);
+});
+
+test("stats.markdownChars matches the returned Markdown", () => {
+  const removed = run("contract/hidden-text.html", { removeHiddenText: true });
+  assert.equal(removed.stats.markdownChars, removed.markdown.length);
+  const { document } = parseHTML(`<!doctype html><html><body><main><p>${"Light text. ".repeat(20)}</p></main></body></html>`);
+  shadowHost(document, 2);
+  const over = pageToMarkdown(document, { url: URL_BASE, extract: "full", sanitize: { shadowNodeLimit: 2 } });
+  assert.equal(over.stats.markdownChars, over.markdown.length);
 });
