@@ -1,21 +1,24 @@
 // Runs the golden fixtures and live-DOM checks in a real browser: headless
 // Chrome or Edge, no extra dependencies. Builds one self-contained page
 // (bundle, harness and fixtures inline, so file:// works), loads it with
-// --dump-dom and reads the results back.
+// --dump-dom and reads the results back. The launch goes through the fleet's
+// seeded helper (scripts/safe-chromium.mjs, a managed copy from
+// static-web-watt3d) with one reusable profile, kept outside the repo.
 //   npm run test:browser
 //   PAGE_MARKDOWN_BROWSER=/path/to/chrome npm run test:browser
 // The built page stays at .browser-test/index.html for opening by hand.
 import { build } from "esbuild";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { spawnSafeChromium } from "../../scripts/safe-chromium.mjs";
 import { GOLDEN_OPTIONS, GOLDEN_DIRS } from "../golden-options.mjs";
 
 const FIXTURES = "test/fixtures";
 const OUT_DIR = ".browser-test";
 const URL_BASE = "https://example.com/dir/page";
+const PROFILE = path.join(os.tmpdir(), "page-markdown-chromium-reusable");
 
 const CANDIDATES = [
   process.env.PAGE_MARKDOWN_BROWSER,
@@ -26,6 +29,10 @@ const CANDIDATES = [
   "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
   "google-chrome", "chromium", "chromium-browser", "microsoft-edge",
 ].filter(Boolean);
+
+const onPath = (name) => (process.env.PATH || "").split(path.delimiter).some((dir) =>
+  ["", ".exe"].some((ext) => fs.existsSync(path.join(dir, name + ext))));
+const installed = (browser) => (path.basename(browser) === browser ? onPath(browser) : fs.existsSync(browser));
 
 const fixtures = GOLDEN_DIRS.flatMap((dir) => fs.readdirSync(path.join(FIXTURES, dir))
   .filter((f) => f.endsWith(".html"))
@@ -68,33 +75,36 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
 const pagePath = path.resolve(OUT_DIR, "index.html");
 fs.writeFileSync(pagePath, page);
 
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), "page-markdown-browser-"));
-const args = ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-  `--user-data-dir=${profile}`, "--dump-dom", pathToFileURL(pagePath).href];
-let dom = null;
-let used = null;
-for (const browser of CANDIDATES) {
-  if (path.isAbsolute(browser) && !fs.existsSync(browser)) continue;
-  const run = spawnSync(browser, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 120_000 });
-  if (run.error?.code === "ENOENT") continue;
-  dom = run.stdout;
-  used = browser;
-  break;
-}
-fs.rmSync(profile, { recursive: true, force: true });
-
+// Choose before launching: the profile stays locked until the launch's process
+// has closed, so there is exactly one launch per run and no retry on another.
+const used = CANDIDATES.find(installed);
 if (!used) {
   console.error("no Chrome or Edge found; set PAGE_MARKDOWN_BROWSER to a Chromium-based browser");
   process.exit(1);
 }
-const match = dom?.match(/<pre id="results" hidden="">([^<]*)<\/pre>/);
+const args = ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+  `--user-data-dir=${PROFILE}`, "--dump-dom", pathToFileURL(pagePath).href];
+const child = await spawnSafeChromium(used, args, { stdio: ["ignore", "pipe", "ignore"] }, { label: "page-markdown browser test" });
+const dom = await new Promise((resolve) => {
+  let out = "";
+  const timer = setTimeout(() => child.kill(), 120_000);
+  const done = () => { clearTimeout(timer); resolve(out); };
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { out += chunk; });
+  child.once("close", done);
+  child.once("error", done);
+});
+
+// process.exitCode, not process.exit: the helper is still releasing its locks.
+const match = dom.match(/<pre id="results" hidden="">([^<]*)<\/pre>/);
 if (!match?.[1]) {
   console.error(`no results from ${used}; open ${pagePath} to see why`);
-  process.exit(1);
+  process.exitCode = 1;
+} else {
+  const { userAgent, results } = JSON.parse(decodeURIComponent(match[1]));
+  const failed = results.filter((r) => !r.ok);
+  for (const r of failed) console.error(`FAIL ${r.name}\n${r.error}\n`);
+  console.log(`browser: ${userAgent}`);
+  console.log(`${results.length - failed.length}/${results.length} passed (${fixtures.length} goldens, ${results.length - fixtures.length} live-DOM checks)`);
+  if (failed.length) process.exitCode = 1;
 }
-const { userAgent, results } = JSON.parse(decodeURIComponent(match[1]));
-const failed = results.filter((r) => !r.ok);
-for (const r of failed) console.error(`FAIL ${r.name}\n${r.error}\n`);
-console.log(`browser: ${userAgent}`);
-console.log(`${results.length - failed.length}/${results.length} passed (${fixtures.length} goldens, ${results.length - fixtures.length} live-DOM checks)`);
-if (failed.length) process.exitCode = 1;
