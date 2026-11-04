@@ -4,7 +4,7 @@ mdn-abortsignal https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
 pg-essay https://paulgraham.com/greatwork.html
 python-json-docs https://docs.python.org/3/library/json.html
 wikipedia-markdown https://en.wikipedia.org/wiki/Markdown
-# Held-out pages: no fix in src/ was tuned on these. Probes and reference roots in bench/probes.mjs were committed before any engine ran on them.
+# Held-out pages: no fix in src/ was tuned on these until the first benchmark run; fixes for code line breaks and heise.de's ad-marked body have since come from their failures. Probes and reference roots in bench/probes.mjs were committed before any engine ran on them.
 news-guardian https://www.theguardian.com/science/2026/nov/03/nasa-telescope-neil-gehrels-swift-observatory
 news-ars https://arstechnica.com/science/2026/11/research-roundup-6-cool-science-stories-we-almost-missed-7/
 commerce-ikea https://www.ikea.com/us/en/cat/billy-bookcases-58288/

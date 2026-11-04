@@ -4,7 +4,8 @@
 // recall and precision (see REFERENCES in probes.mjs) say how much of the page's
 // content came through and how much else came with it. No browser.
 //   node bench/fetch-pages.mjs                 (once)
-//   node bench/compare.mjs [--write bench/RESULTS.md]
+//   npm run bench                              (prints only)
+//   npm run bench:write                        (also writes bench/RESULTS.md)
 import fs from "node:fs";
 import path from "node:path";
 import Readability from "@mozilla/readability/Readability.js";
@@ -292,6 +293,10 @@ if (writeIndex > -1) {
     "commit fixed how the probes parse fences; no expectation changed. Probes test presence,",
     "not quality.",
     "",
+    "The held-out tier is no longer fully unseen. Two fixes came from its failures: code line",
+    "breaks on Docusaurus and Starlight, and the ad marker on heise.de's body. It scored 75/100",
+    "before those fixes.",
+    "",
     "Word recall is the share of a page's reference words found in the output, counted as a",
     "bag of words after Unicode segmentation. The reference is the text of hand-picked",
     "content elements of the raw HTML (`REFERENCES` in `bench/probes.mjs`), chosen from the",
@@ -301,7 +306,7 @@ if (writeIndex > -1) {
     "",
     "Node with linkedom, no browser: pages are static HTML from `bench/fetch-pages.mjs`, not",
     "committed, so content rendered by JavaScript is out of scope and live pages can drift.",
-    "To reproduce: `pnpm install`, `node bench/fetch-pages.mjs`, `node bench/compare.mjs --write`.",
+    "To reproduce: `pnpm install`, `node bench/fetch-pages.mjs`, `npm run bench:write`.",
   ].join("\n");
   fs.writeFileSync(out, `${header}\n\n${report}\n`);
   console.log(`\nwrote ${out}`);

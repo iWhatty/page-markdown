@@ -34,7 +34,8 @@
     "ci": "npm test && npm run typecheck && npm run test:browser && npm run size",
     "prepack": "npm run build:types",
     "prepublishOnly": "npm run ci",
-    "bench": "node bench/compare.mjs"
+    "bench": "node bench/compare.mjs",
+    "bench:write": "node bench/compare.mjs --write"
   },
   "keywords": [
     "markdown",

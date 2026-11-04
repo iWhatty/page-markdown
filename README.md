@@ -30,6 +30,9 @@ The live page is only read, never modified.
 npm install page-markdown
 ```
 
+Free for personal, non-commercial academic and fully open-source use. Other
+commercial use needs a licence: see [Licence](#licence).
+
 ## Usage
 
 ```js
@@ -149,8 +152,8 @@ Set `PAGE_MARKDOWN_BROWSER` to choose the browser. The built page is kept at
 `npm run bench` scores the package against two baselines: Turndown over the page
 body, and Readability then Turndown. It runs 15 fixture checks and 117 probes on
 16 real pages, which `node bench/fetch-pages.mjs` fetches first, and measures word
-recall against a hand-picked reference for each page. See
-[bench/RESULTS.md](bench/RESULTS.md). Currently:
+recall against a hand-picked reference for each page. `npm run bench` only prints;
+`npm run bench:write` also updates [bench/RESULTS.md](bench/RESULTS.md). Currently:
 
 | Tier | page-markdown | Readability + Turndown | Turndown only |
 |---|---|---|---|
@@ -161,7 +164,9 @@ recall against a hand-picked reference for each page. See
 
 The held-out row is the one to weigh. On those pages the package leads plain
 Readability + Turndown on probes, and the two are level on word recall and
-precision. What it fails there:
+precision. The pages are no longer fully unseen: the package scored 75/100 before
+two fixes that came from their failures, so read 84 as a little generous. What it
+still fails there:
 
 - **Most H2s dropped** on Docusaurus and Starlight, by Readability; Starlight also
   keeps "Section titled" anchor text.
@@ -200,6 +205,19 @@ before a commit. It runs locally; the repo deliberately has no cloud CI.
 page-markdown is under the WATT3D Source License: AGPL-3.0 with the Additional
 Terms in [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md) (see [LICENSE](LICENSE)).
 [robots.txt](robots.txt) states the AI-crawler policy.
+
+In short (the licence files govern, and this is not legal advice):
+
+| Use | Terms |
+|---|---|
+| Personal, non-commercial | Free |
+| Non-commercial academic research | Free |
+| Commercial use, including inside a for-profit company | Only if everything you own or operate is open source under a licence at least as protective as AGPL-3.0; otherwise you need a commercial licence |
+| AI training, fine-tuning or a RAG corpus built from this software | Counts as commercial use, and the resulting model must be released with open weights |
+
+AGPL-3.0 applies throughout, including its source-sharing duties for networked
+services. For a commercial licence, write to
+[WATT3D@protonmail.com](mailto:WATT3D@protonmail.com).
 
 It bundles text-sanctifier's run finder (same licence) and Mozilla Readability
 (Apache-2.0) and Turndown (MIT), whose licences are in

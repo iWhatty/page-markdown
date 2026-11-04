@@ -46,7 +46,11 @@ Content-fidelity fixes, each with a new fixture run in Node and in the browser:
   engine ran on them. The headline changes from 32/32 against 11/32 to 84/100
   against 74/100 and 61/100 on the held-out pages; see `bench/RESULTS.md` for the
   failures. `bench/fetch-pages.mjs` now decodes by declared charset and keeps the
-  last good copy when a fetch fails.
+  last good copy when a fetch fails. `npm run bench:write` updates
+  `bench/RESULTS.md`; `npm run bench` only prints.
+- **Licence summary.** The README now says in plain words who can use the package
+  free and who needs a commercial licence, and how to ask for one. The licence
+  itself is unchanged.
 - **Browser run.** `npm run test:browser` runs the golden fixtures in
   headless Chrome or Edge, with the browser's own DOM, and checks what Node
   can't show:

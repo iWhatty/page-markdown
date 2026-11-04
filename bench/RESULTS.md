@@ -11,6 +11,10 @@ those probes were written for this package, though before any engine ran. One la
 commit fixed how the probes parse fences; no expectation changed. Probes test presence,
 not quality.
 
+The held-out tier is no longer fully unseen. Two fixes came from its failures: code line
+breaks on Docusaurus and Starlight, and the ad marker on heise.de's body. It scored 75/100
+before those fixes.
+
 Word recall is the share of a page's reference words found in the output, counted as a
 bag of words after Unicode segmentation. The reference is the text of hand-picked
 content elements of the raw HTML (`REFERENCES` in `bench/probes.mjs`), chosen from the
@@ -20,7 +24,7 @@ on what counts as content moves both numbers.
 
 Node with linkedom, no browser: pages are static HTML from `bench/fetch-pages.mjs`, not
 committed, so content rendered by JavaScript is out of scope and live pages can drift.
-To reproduce: `pnpm install`, `node bench/fetch-pages.mjs`, `node bench/compare.mjs --write`.
+To reproduce: `pnpm install`, `node bench/fetch-pages.mjs`, `npm run bench:write`.
 
 ## Summary
 
@@ -231,54 +235,54 @@ Recall / precision against each page's reference.
 
 | Page | Engine | Chars | Relative links | Extraction | ms |
 |---|---|---|---|---|---|
-| mdn-abortsignal | turndown-only | 26365 | 193 | full_page | 42 |
-| mdn-abortsignal | readability+turndown | 14141 | 0 | readability | 58 |
-| mdn-abortsignal | page-markdown | 14148 | 0 | readability | 112 |
-| wikipedia-markdown | turndown-only | 66390 | 74 | full_page | 153 |
-| wikipedia-markdown | readability+turndown | 41918 | 1 | readability | 180 |
-| wikipedia-markdown | page-markdown | 42363 | 0 | readability | 268 |
-| python-json-docs | turndown-only | 38140 | 115 | full_page | 53 |
+| mdn-abortsignal | turndown-only | 26365 | 193 | full_page | 77 |
+| mdn-abortsignal | readability+turndown | 14141 | 0 | readability | 80 |
+| mdn-abortsignal | page-markdown | 14148 | 0 | readability | 194 |
+| wikipedia-markdown | turndown-only | 66390 | 74 | full_page | 132 |
+| wikipedia-markdown | readability+turndown | 41918 | 1 | readability | 193 |
+| wikipedia-markdown | page-markdown | 42363 | 0 | readability | 324 |
+| python-json-docs | turndown-only | 38140 | 115 | full_page | 59 |
 | python-json-docs | readability+turndown | 35779 | 0 | readability | 162 |
-| python-json-docs | page-markdown | 35808 | 0 | readability | 201 |
+| python-json-docs | page-markdown | 35808 | 0 | readability | 171 |
 | pg-essay | turndown-only | 68974 | 0 | full_page | 29 |
-| pg-essay | readability+turndown | 67567 | 0 | readability | 33 |
-| pg-essay | page-markdown | 67567 | 0 | readability | 64 |
-| github-readability | turndown-only | 20261 | 79 | full_page | 51 |
-| github-readability | readability+turndown | 7667 | 0 | readability | 78 |
-| github-readability | page-markdown | 7481 | 0 | readability | 134 |
-| news-guardian | turndown-only | 14987 | 118 | full_page | 39 |
-| news-guardian | readability+turndown | 4914 | 0 | readability | 26 |
-| news-guardian | page-markdown | 5026 | 0 | readability | 50 |
-| news-ars | turndown-only | 25758 | 14 | full_page | 39 |
-| news-ars | readability+turndown | 17766 | 0 | readability | 41 |
-| news-ars | page-markdown | 17766 | 0 | readability | 87 |
-| commerce-books | turndown-only | 1734 | 4 | full_page | 6 |
-| commerce-books | readability+turndown | 1617 | 0 | readability | 9 |
-| commerce-books | page-markdown | 1690 | 0 | readability | 14 |
-| commerce-ikea | turndown-only | 56797 | 1 | full_page | 88 |
-| commerce-ikea | readability+turndown | 3169 | 0 | readability | 70 |
-| commerce-ikea | page-markdown | 3155 | 0 | readability | 126 |
-| forum-arch | turndown-only | 101126 | 38 | full_page | 37 |
-| forum-arch | readability+turndown | 95468 | 0 | readability | 109 |
-| forum-arch | page-markdown | 95415 | 0 | readability | 152 |
-| forum-lobsters | turndown-only | 3219 | 27 | full_page | 14 |
-| forum-lobsters | readability+turndown | 621 | 0 | readability | 12 |
-| forum-lobsters | page-markdown | 621 | 0 | readability | 15 |
-| docs-docusaurus | turndown-only | 13790 | 78 | full_page | 41 |
-| docs-docusaurus | readability+turndown | 7289 | 0 | readability | 88 |
-| docs-docusaurus | page-markdown | 7471 | 0 | readability | 126 |
-| docs-starlight | turndown-only | 24983 | 49 | full_page | 49 |
-| docs-starlight | readability+turndown | 16752 | 4 | readability | 93 |
-| docs-starlight | page-markdown | 17004 | 4 | readability | 147 |
-| de-heise | turndown-only | 22381 | 80 | full_page | 29 |
-| de-heise | readability+turndown | 2510 | 0 | readability | 41 |
-| de-heise | page-markdown | 2653 | 0 | readability | 62 |
-| ja-aozora | turndown-only | 10969 | 1 | full_page | 9 |
-| ja-aozora | readability+turndown | 10495 | 0 | readability | 19 |
-| ja-aozora | page-markdown | 10495 | 0 | readability | 33 |
-| ar-bbc | turndown-only | 21175 | 37 | full_page | 33 |
-| ar-bbc | readability+turndown | 10471 | 0 | readability | 33 |
-| ar-bbc | page-markdown | 10454 | 0 | readability | 79 |
+| pg-essay | readability+turndown | 67567 | 0 | readability | 38 |
+| pg-essay | page-markdown | 67567 | 0 | readability | 86 |
+| github-readability | turndown-only | 20261 | 79 | full_page | 83 |
+| github-readability | readability+turndown | 7667 | 0 | readability | 119 |
+| github-readability | page-markdown | 7481 | 0 | readability | 269 |
+| news-guardian | turndown-only | 14987 | 118 | full_page | 58 |
+| news-guardian | readability+turndown | 4914 | 0 | readability | 40 |
+| news-guardian | page-markdown | 5026 | 0 | readability | 99 |
+| news-ars | turndown-only | 25758 | 14 | full_page | 57 |
+| news-ars | readability+turndown | 17766 | 0 | readability | 43 |
+| news-ars | page-markdown | 17766 | 0 | readability | 115 |
+| commerce-books | turndown-only | 1734 | 4 | full_page | 3 |
+| commerce-books | readability+turndown | 1617 | 0 | readability | 4 |
+| commerce-books | page-markdown | 1690 | 0 | readability | 7 |
+| commerce-ikea | turndown-only | 56797 | 1 | full_page | 98 |
+| commerce-ikea | readability+turndown | 3169 | 0 | readability | 67 |
+| commerce-ikea | page-markdown | 3155 | 0 | readability | 166 |
+| forum-arch | turndown-only | 101126 | 38 | full_page | 26 |
+| forum-arch | readability+turndown | 95468 | 0 | readability | 131 |
+| forum-arch | page-markdown | 95415 | 0 | readability | 254 |
+| forum-lobsters | turndown-only | 3219 | 27 | full_page | 6 |
+| forum-lobsters | readability+turndown | 621 | 0 | readability | 14 |
+| forum-lobsters | page-markdown | 621 | 0 | readability | 20 |
+| docs-docusaurus | turndown-only | 13790 | 78 | full_page | 77 |
+| docs-docusaurus | readability+turndown | 7289 | 0 | readability | 107 |
+| docs-docusaurus | page-markdown | 7471 | 0 | readability | 114 |
+| docs-starlight | turndown-only | 24983 | 49 | full_page | 74 |
+| docs-starlight | readability+turndown | 16752 | 4 | readability | 107 |
+| docs-starlight | page-markdown | 17004 | 4 | readability | 229 |
+| de-heise | turndown-only | 22381 | 80 | full_page | 52 |
+| de-heise | readability+turndown | 2510 | 0 | readability | 38 |
+| de-heise | page-markdown | 2653 | 0 | readability | 374 |
+| ja-aozora | turndown-only | 10969 | 1 | full_page | 15 |
+| ja-aozora | readability+turndown | 10495 | 0 | readability | 24 |
+| ja-aozora | page-markdown | 10495 | 0 | readability | 50 |
+| ar-bbc | turndown-only | 21175 | 37 | full_page | 39 |
+| ar-bbc | readability+turndown | 10471 | 0 | readability | 49 |
+| ar-bbc | page-markdown | 10454 | 0 | readability | 154 |
 
 ## Snapshots
 
