@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Browser run.** `npm run test:browser` runs the 26 golden fixtures in
+  headless Chrome or Edge, with the browser's own DOM, and checks what Node
+  can't show:
+  - the live document is left unmodified;
+  - real open shadow roots are captured, nested roots and slotted children
+    included;
+  - closed shadow roots stay out.
+
+  It is part of `npm run ci` and needs no new dependencies. All 31 checks pass
+  in Chrome 156 and Edge 156 with no code changes, so the package's output in
+  a browser matches its Node output.
+
 ## 0.1.4 — 2026-11-02
 
 - **text-sanctifier 1.3.8** (was 1.3.3). `removeHiddenText` now also removes

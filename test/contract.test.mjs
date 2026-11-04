@@ -13,6 +13,7 @@ import path from "node:path";
 import { parseHTML } from "linkedom";
 
 import { pageToMarkdown } from "../src/index.js";
+import { GOLDEN_OPTIONS, GOLDEN_DIRS } from "./golden-options.mjs";
 
 const FIXTURES = "test/fixtures";
 const URL_BASE = "https://example.com/dir/page";
@@ -43,14 +44,7 @@ function golden(name, actual) {
   assert.equal(actual, expected, `${name} changed; review, then regenerate if intended`);
 }
 
-// Fixtures whose golden pins an opt-in behaviour.
-const GOLDEN_OPTIONS = {
-  "regression/package-sidebar.html": { pageFacts: true },
-  "regression/linked-images.html": { mode: "no_links" },
-  "contract/hidden-text.html": { removeHiddenText: true },
-};
-
-for (const dir of ["contract", "source-capture", "regression"]) {
+for (const dir of GOLDEN_DIRS) {
   for (const file of fs.readdirSync(path.join(FIXTURES, dir)).filter((f) => f.endsWith(".html"))) {
     test(`golden: ${dir}/${file}`, () => {
       golden(`${dir}--${file.replace(/\.html$/, "")}`, run(`${dir}/${file}`, GOLDEN_OPTIONS[`${dir}/${file}`]).markdown);

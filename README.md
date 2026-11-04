@@ -3,8 +3,9 @@
 Faithful page-to-Markdown for humans and agents. Give it a web page's DOM and
 it returns clean Markdown plus metadata. It is written for browsers, for
 example an extension's content script, and runs in Node with a DOM library.
-So far it is tested only in Node (see [Known limits](#known-limits-v01)). It
-was built for WATT3D's browser extensions.
+It is tested in Node and in headless Chrome and Edge, but not yet in Firefox or
+Safari (see [Known limits](#known-limits-v01)). It was built for WATT3D's
+browser extensions.
 
 ```
 live Document
@@ -95,6 +96,17 @@ const { markdown: safe, omissions } = pageToMarkdown(document, { removeHiddenTex
 - the shadow DOM limits and their omission notice;
 - leaving the live page unmodified.
 
+`npm run test:browser` runs the same golden fixtures in headless Chrome (or
+Edge), parsed by the browser's own DOM, with no extra dependencies. It also
+checks what Node can't show:
+- a live document with layout is left unmodified;
+- real open shadow roots are captured, including nested roots and slotted
+  children in rendered order;
+- closed shadow roots stay out of the capture.
+
+Set `PAGE_MARKDOWN_BROWSER` to choose the browser. The built page is kept at
+`.browser-test/index.html` for opening by hand.
+
 `npm run bench` scores the package against a naive baseline (Turndown over the
 page body). It runs 15 fixture checks and 17 probes on five real pages, which
 `node bench/fetch-pages.mjs` fetches first. See
@@ -103,13 +115,14 @@ page body). It runs 15 fixture checks and 17 probes on five real pages, which
 Browser bundle: about 65 KB minified, 23 KB gzip (`npm run size`, ceiling 66 KB
 minified). Readability is most of it.
 
-`npm run ci` runs the contract suite and the size check, and must exit 0
+`npm run ci` runs the contract suite, the browser run and the size check, and must exit 0
 before a commit. It runs locally; the repo deliberately has no cloud CI.
 
 ## Known limits (v0.1)
 
-- **Node only so far.** Tested in Node with linkedom, not yet in a browser. The
-  open shadow DOM path is exercised only with a stand-in host in tests.
+- **Chromium only so far.** Tested in Node (linkedom) and in headless Chrome
+  and Edge, but not in Firefox or Safari, and not yet inside a real extension's
+  content script.
 - **Some legacy markup loses paragraph breaks.** Readability can drop runs of
   `<br>` between inline elements in old HTML. The text survives; a paragraph
   break may not.
