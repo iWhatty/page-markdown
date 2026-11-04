@@ -570,3 +570,10 @@ test("stats.markdownChars matches the returned Markdown", () => {
   const over = pageToMarkdown(document, { url: URL_BASE, extract: "full", sanitize: { shadowNodeLimit: 2 } });
   assert.equal(over.stats.markdownChars, over.markdown.length);
 });
+
+test("an ad marker on <body> doesn't remove the page; ads inside it still go", () => {
+  const { markdown } = run("regression/ad-marked-body.html");
+  assert.match(markdown, /Two small satellites/);
+  assert.match(markdown, /eleven minutes/);
+  assert.doesNotMatch(markdown, /inner advert/);
+});

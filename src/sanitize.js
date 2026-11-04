@@ -37,6 +37,8 @@ const AD_ELEMENT_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-(?:placement|advert|adve
 /** @param {any} node */
 export function isAdvertisementElement(node) {
   if (node?.nodeType !== 1) return false;
+  // Sites put page-wide ad settings on <body> (heise.de's data-ad-unit).
+  if (node.localName === "html" || node.localName === "body") return false;
   if (AD_ELEMENT_NAME.test(node.localName || "")) return true;
   try {
     return Boolean(node.matches?.(AD_SELECTOR));
