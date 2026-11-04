@@ -27,8 +27,23 @@ export function plain(md) {
   return straighten(text).replace(/\s+/g, " ");
 }
 
+// Fence bodies, dedented. A fence may sit indented in a list item and may use a
+// longer run of backticks to wrap shorter ones.
 function fences(md) {
-  return [...md.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gm)].map((m) => m[1]);
+  const bodies = [];
+  let open = null;
+  for (const line of md.split("\n")) {
+    const marker = line.match(/^(\s*)(`{3,})(.*)$/);
+    if (!open) {
+      if (marker) open = { indent: marker[1].length, ticks: marker[2].length, lines: [] };
+    } else if (marker && marker[2].length >= open.ticks && !marker[3].trim()) {
+      bodies.push(open.lines.join("\n"));
+      open = null;
+    } else {
+      open.lines.push(line.slice(open.indent));
+    }
+  }
+  return bodies;
 }
 
 const has = (phrase) => Object.assign((md) => plain(md).includes(straighten(phrase)), { phrase });
