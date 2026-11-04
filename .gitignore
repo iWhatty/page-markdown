@@ -2,3 +2,4 @@ node_modules/
 .bench/
 *.log
 .browser-test/
+.types-test/

@@ -4,8 +4,12 @@
   "description": "Faithful page-to-Markdown for humans and agents: sanitize, extract the readable article, convert with GFM, and clean without losing content.",
   "type": "module",
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
   },
+  "types": "./src/index.d.ts",
   "files": [
     "src",
     "LICENSE",
@@ -22,9 +26,10 @@
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.mjs\"",
+    "typecheck": "node test/types/real-output.mjs && tsc -p test/types && tsc -p test/types/linkedom",
     "size": "node bench/size.mjs",
     "test:browser": "node test/browser/run.mjs",
-    "ci": "npm test && npm run test:browser && npm run size",
+    "ci": "npm test && npm run typecheck && npm run test:browser && npm run size",
     "prepublishOnly": "npm run ci",
     "bench": "node bench/compare.mjs"
   },
@@ -53,6 +58,7 @@
   },
   "devDependencies": {
     "esbuild": "0.27.0",
-    "linkedom": "0.18.12"
+    "linkedom": "0.18.12",
+    "typescript": "5.9.3"
   }
 }

@@ -1,0 +1,15 @@
+{
+  // "lib" leaves out DOM on purpose: src/index.d.ts must bring it in for a
+  // Node consumer. "skipLibCheck" off also checks src/index.d.ts itself.
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "target": "es2022",
+    "lib": ["es2022"],
+    "module": "node16",
+    "moduleResolution": "node16",
+    "types": [],
+    "skipLibCheck": false
+  },
+  "include": ["*.ts", "../../.types-test/*.ts"]
+}
