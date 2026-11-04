@@ -38,6 +38,12 @@ Content-fidelity fixes, each with a new fixture run in Node and in the browser:
   checks `src` against its JSDoc, checks a consumer file with `tsc`, and checks
   the declarations against real output from every fixture, in both directions.
   Only comments change in the existing modules; the bundle is the same size.
+- **Bench.** `npm run bench` adds a Readability + Turndown baseline, word recall
+  and precision, and 11 held-out pages whose probes were committed before any
+  engine ran on them. The headline changes from 32/32 against 11/32 to 75/100
+  against 74/100 and 61/100 on the held-out pages; see `bench/RESULTS.md` for the
+  failures. `bench/fetch-pages.mjs` now decodes by declared charset and keeps the
+  last good copy when a fetch fails.
 - **Browser run.** `npm run test:browser` runs the golden fixtures in
   headless Chrome or Edge, with the browser's own DOM, and checks what Node
   can't show:

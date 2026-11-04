@@ -146,10 +146,33 @@ checks what Node can't show:
 Set `PAGE_MARKDOWN_BROWSER` to choose the browser. The built page is kept at
 `.browser-test/index.html` for opening by hand.
 
-`npm run bench` scores the package against a naive baseline (Turndown over the
-page body). It runs 15 fixture checks and 17 probes on five real pages, which
-`node bench/fetch-pages.mjs` fetches first. See
-[bench/RESULTS.md](bench/RESULTS.md): currently **32/32 against 11/32**.
+`npm run bench` scores the package against two baselines: Turndown over the page
+body, and Readability then Turndown. It runs 15 fixture checks and 117 probes on
+16 real pages, which `node bench/fetch-pages.mjs` fetches first, and measures word
+recall against a hand-picked reference for each page. See
+[bench/RESULTS.md](bench/RESULTS.md). Currently:
+
+| Tier | page-markdown | Readability + Turndown | Turndown only |
+|---|---|---|---|
+| Fixtures, written with the package | 15/15 | 7/15 | 3/15 |
+| Five pages the fixes were tuned on | 17/17 | 9/17 | 8/17 |
+| **11 held-out pages** | **75/100** | **74/100** | **61/100** |
+| Held-out word recall / precision | 77.2% / 86.6% | 85.4% / 95.6% | 98.2% / 72.1% |
+
+The held-out row is the one to weigh. On those pages the package roughly ties
+plain Readability + Turndown, and one empty output (the first failure below) puts
+it behind on recall. What it fails there:
+
+- **Empty output** when `<body>` itself carries an ad marker: `data-ad-unit` on
+  heise.de makes the ad filter remove the whole body.
+- **Code loses its line breaks** when a highlighter puts each line in a block
+  element (Docusaurus, Starlight).
+- **Most H2s dropped** on Docusaurus and Starlight, by Readability; Starlight also
+  keeps "Section titled" anchor text.
+- **Non-default tab panels dropped** (Starlight).
+- **Comments and product grids lost**, by Readability: 36% word recall on a
+  Lobsters thread, 50% on an IKEA category page.
+- **Promo boxes kept** inside a BBC Arabic article.
 
 Browser bundle: about 67 KB minified, 24 KB gzip (`npm run size`, ceiling 68 KB
 minified). Readability is most of it.
