@@ -24,6 +24,7 @@
     "test": "node --test \"test/**/*.test.mjs\"",
     "size": "node bench/size.mjs",
     "ci": "npm test && npm run size",
+    "prepublishOnly": "npm run ci",
     "bench": "node bench/compare.mjs"
   },
   "keywords": [
