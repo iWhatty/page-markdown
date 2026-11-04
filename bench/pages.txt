@@ -4,3 +4,15 @@ mdn-abortsignal https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
 pg-essay https://paulgraham.com/greatwork.html
 python-json-docs https://docs.python.org/3/library/json.html
 wikipedia-markdown https://en.wikipedia.org/wiki/Markdown
+# Held-out pages: no fix in src/ was tuned on these. Probes and reference roots in bench/probes.mjs were committed before any engine ran on them.
+news-guardian https://www.theguardian.com/science/2026/nov/03/nasa-telescope-neil-gehrels-swift-observatory
+news-ars https://arstechnica.com/science/2026/11/research-roundup-6-cool-science-stories-we-almost-missed-7/
+commerce-ikea https://www.ikea.com/us/en/cat/billy-bookcases-58288/
+commerce-books https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html
+docs-docusaurus https://docusaurus.io/docs/markdown-features/admonitions
+docs-starlight https://starlight.astro.build/guides/authoring-content/
+de-heise https://www.heise.de/news/Griechischer-Satellit-testet-Laserkommunikation-zur-Erde-11512517.html
+ja-aozora https://www.aozora.gr.jp/cards/000035/files/1567_14913.html
+ar-bbc https://www.bbc.com/arabic/articles/cq70pd6k6n7eo
+forum-arch https://bbs.archlinux.org/viewtopic.php?id=315365
+forum-lobsters https://lobste.rs/s/cozhtg/so_my_isp_was_hijacking_my_dns
