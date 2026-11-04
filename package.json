@@ -1,6 +1,6 @@
 {
   "name": "page-markdown",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Faithful page-to-Markdown for humans and agents: sanitize, extract the readable article, convert with GFM, and clean without losing content.",
   "type": "module",
   "exports": {

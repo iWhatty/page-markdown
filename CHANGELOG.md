@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.5 — 2026-11-04
 
 Content-fidelity fixes, each with a new fixture run in Node and in the browser:
 

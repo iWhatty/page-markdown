@@ -577,3 +577,8 @@ test("an ad marker on <body> doesn't remove the page; ads inside it still go", (
   assert.match(markdown, /eleven minutes/);
   assert.doesNotMatch(markdown, /inner advert/);
 });
+
+test("result.version matches package.json", () => {
+  const { version } = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  assert.equal(run("contract/hidden-text.html").version, version);
+});
