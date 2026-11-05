@@ -10,9 +10,11 @@ const TARGET_MIN_BYTES = 60 * 1024;
 // stage (text-sanctifier's run finder, about 1.5 KB) and block rendering for
 // tables holding code. Raised to 68 KB when the bundle reached 67.1 KB: fixes
 // that stop content loss (code line breaks, row spans, table performance,
-// fences in lists, link schemes). Raise it again only deliberately, with a
-// reason.
-const BUDGET_MIN_BYTES = 68 * 1024;
+// fences in lists, link schemes). Raised to 70 KB when the bundle reached
+// 68.3 KB: fixes for silent content loss (main-content fallback, per-host
+// shadow limits, headings with clutter-like names). Raise it again only
+// deliberately, with a reason.
+const BUDGET_MIN_BYTES = 70 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],

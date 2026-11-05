@@ -3,8 +3,9 @@
 Faithful page-to-Markdown for humans and agents. Give it a web page's DOM and
 it returns clean Markdown plus metadata. It is written for browsers, for
 example an extension's content script, and runs in Node with a DOM library.
-It is tested in Node and in headless Chrome and Edge, but not yet in Firefox or
-Safari (see [Known limits](#known-limits-v01)). It was built for WATT3D's
+It is tested in Node, in headless Chrome and Edge, and in a real extension
+(HELIOS, in Brave), but not yet in Firefox or Safari (see
+[Known limits](#known-limits-v01)). It was built for WATT3D's
 browser extensions.
 
 ```
@@ -13,6 +14,7 @@ live Document
   → standardize   <pre> → fenced code with language; heading wrappers unwrapped; empty and
                   javascript: links removed; absolute links and images; lazy images resolved
   → extract       Mozilla Readability on a copy; full-page fallback when it finds too little;
+                  main-content fallback when it keeps only a small share of the page;
                   a dropped lead paragraph restored; a clean title heading
   → convert       Turndown + GitHub-flavoured tables, strikethrough and task lists; tables never
                   come out as raw HTML
@@ -57,13 +59,14 @@ pageToMarkdown(doc, { url: "https://example.com/article" });
 | `url` | the document's URL | Base for absolute links and images |
 | `extract` | `"readable"` | `"readable"` (Readability, full-page fallback), `"full"`, or a function `(docCopy) => { html, method }` |
 | `minExtractChars` | `100` | Below this, readable extraction falls back to the full page |
+| `minExtractShare` | `0.4` | When Readability keeps less than this share of the page's main content (and misses at least 500 characters), the main content is used instead: forum threads and product grids. `0` turns it off |
 | `includeFullPage` | `false` | Also return `fullPageMarkdown` |
 | `includeTitle` | `true` | Start readable output with `# <headline>`: the page's H1, else its title without the site name |
 | `recoverLead` | `true` | Restore a lead paragraph the extractor dropped, when it matches the meta description |
 | `pageFacts` | `false` | Append `## Page facts`: short label/value pairs outside the article (a sidebar's version or license, spec rows, infobox rows) that the extractor dropped. `extraction.pageFacts` counts them |
 | `removeHiddenText` | `false` | Remove text hidden from people but read by models: runs of tag characters, variation selectors, invisible operators and reserved tag-plane code points, found by [text-sanctifier](https://github.com/iWhatty/text-sanctifier)'s `findHiddenRuns`. Applies to `markdown` (fenced code included), `fullPageMarkdown` and `metadata`. The England, Scotland and Wales flags and a lone emoji or text presentation selector are kept. `omissions` gets one entry per kind (`hidden_tag`, `hidden_variation_selector`, `hidden_invisible_operator`, `hidden_reserved_tag_plane`) with `count` runs and `chars` code points removed from `markdown` |
 | `mode` | `"full"` | `"no_links"` keeps link text; `"text_only"` also drops structure. Fenced code is never changed |
-| `sanitize` | see `DEFAULT_SANITIZE_OPTIONS` | `stripAds`, `extraStripSelectors` (e.g. `["[data-app-overlay]"]`), shadow limits |
+| `sanitize` | see `DEFAULT_SANITIZE_OPTIONS` | `stripAds`, `extraStripSelectors` (e.g. `["[data-app-overlay]"]`), shadow limits, which apply per outermost host |
 | `readability` | `{}` | Passed to Readability |
 
 The stages are also exported for advanced use: `sanitizeToInertDocument`,
@@ -84,12 +87,12 @@ The stages are also exported for advanced use: `sanitizeToInertDocument`,
 | `metadata.description`, `author`, `published`, `modified`, `siteName`, `lang` | `string` | From meta tags and JSON-LD, `""` when the page doesn't state them. `siteName` falls back to the hostname |
 | `metadata.headline` | `string?` | The heading chosen for the capture |
 | `metadata.extractedTitle`, `byline` | `string?` | What the extractor reported |
-| `extraction.method` | `string` | `"readability"`, `"full_page"`, or the name a custom extractor gave |
-| `extraction.fallbackReason` | `string?` | Why extraction fell back to the full page: `extractor_found_nothing`, `extracted_text_below_minimum` or `extractor_error: …` |
+| `extraction.method` | `string` | `"readability"`, `"main_content"`, `"full_page"`, or the name a custom extractor gave |
+| `extraction.fallbackReason` | `string?` | Why extraction fell back: `extracted_small_share_of_page` (to the main content), or `extractor_found_nothing`, `extracted_text_below_minimum` or `extractor_error: …` (to the full page) |
 | `extraction.leadRecovered` | `true?` | A dropped lead paragraph was restored |
 | `extraction.pageFacts` | `number?` | How many facts `pageFacts` appended |
 | `omissions[]` | `{ kind, count, note, chars? }` | What was left out or removed. `kind` is `shadow_content`, `json_line` or a `hidden_*` kind; only `hidden_*` entries have `chars` |
-| `warnings[]` | `string` | Currently the full-page fallback, in words |
+| `warnings[]` | `string` | Read these before trusting a capture: a fallback, or shadow content cut off at the capture limit, in which case the main content may be missing |
 | `stats.mode` | `string` | The output mode used |
 | `stats.extractedHtmlChars`, `convertedChars`, `markdownChars` | `number` | Sizes at each step. `markdownChars` is measured before `removeHiddenText` and the shadow omission notice |
 | `stats.standardization` | `object` | Counts of what standardizing changed: `lazyImagesResolved`, `inlineImagesDropped`, `scriptLinksUnwrapped`, `emptyLinksRemoved`, `preWrapped`, `headingWidgetsRemoved`, `headingsUnwrapped` |
@@ -162,23 +165,25 @@ recall against a hand-picked reference for each page. `npm run bench` only print
 |---|---|---|---|
 | Fixtures, written with the package | 15/15 | 7/15 | 3/15 |
 | Five pages the fixes were tuned on | 17/17 | 9/17 | 8/17 |
-| **11 held-out pages** | **84/100** | **74/100** | **61/100** |
-| Held-out word recall / precision | 86.3% / 95.5% | 85.4% / 95.6% | 98.2% / 72.1% |
+| **11 pages, once held out** | **97/100** | **74/100** | **61/100** |
+| Their word recall / precision | 96.3% / 89.6% | 85.4% / 95.6% | 98.2% / 72.1% |
 
-The held-out row is the one to weigh. On those pages the package leads plain
-Readability + Turndown on probes, and the two are level on word recall and
-precision. The pages are no longer fully unseen: the package scored 75/100 before
-two fixes that came from their failures, so read 84 as a little generous. What it
-still fails there:
+Don't read 97 as a score on unseen pages. These probes were written before any
+engine ran and the package first scored 75/100, but most of the gain since comes
+from fixes for these same pages' failures. New pages are the real test.
 
-- **Most H2s dropped** on Docusaurus and Starlight, by Readability; Starlight also
-  keeps "Section titled" anchor text.
+It gains recall (96.3% against 85.4%) by keeping more, and pays in precision
+(89.6% against 95.6%). The cost is mostly on the IKEA category page: 29.8% precision,
+because the main-content fallback keeps the page's banners and filters along with
+its products. What it still fails on these pages:
+
 - **Non-default tab panels dropped** (Starlight).
-- **Comments and product grids lost**, by Readability: 36% word recall on a
-  Lobsters thread, 50% on an IKEA category page.
 - **Promo boxes kept** inside a BBC Arabic article.
 
-Browser bundle: about 67 KB minified, 24 KB gzip (`npm run size`, ceiling 68 KB
+A live run in HELIOS on 13 pages found more, before these fixes: Starlight's
+rendered asides are lost, and "REG AD" labels stay on The Register.
+
+Browser bundle: about 68 KB minified, 24 KB gzip (`npm run size`, ceiling 70 KB
 minified). Readability is most of it.
 
 `npm run ci` runs the contract suite, the type check and the size check, and must
@@ -188,9 +193,13 @@ deliberately has no cloud CI.
 
 ## Known limits (v0.1)
 
-- **Chromium only so far.** Tested in Node (linkedom) and in headless Chrome
-  and Edge, but not in Firefox or Safari, and not yet inside a real extension's
-  content script.
+- **Chromium only so far.** Tested in Node (linkedom), in headless Chrome and
+  Edge, and on live pages in a real extension (HELIOS 0.1.5, in Brave), but not
+  in Firefox or Safari.
+- **Extraction can still be wrong without saying so.** The main-content fallback
+  and its warning catch a small share of the page, not every wrong choice. If
+  Readability picks the wrong part of a page and that part is large, nothing
+  flags it.
 - **Some legacy markup loses paragraph breaks.** Readability can drop runs of
   `<br>` between inline elements in old HTML. The text survives; a paragraph
   break may not.

@@ -40,7 +40,7 @@ export {};
 /**
  * @typedef {object} PageMarkdownExtraction
  * @property {Extraction["method"]} method
- * @property {string} [fallbackReason] why extraction fell back to the full page
+ * @property {string} [fallbackReason] why extraction fell back to the full page or the main content
  * @property {true} [leadRecovered] a dropped lead paragraph was restored
  * @property {number} [pageFacts] how many facts `pageFacts` appended
  */

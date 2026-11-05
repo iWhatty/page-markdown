@@ -289,7 +289,7 @@ function shadowHost(doc, count) {
   doc.querySelector("main").appendChild(host);
 }
 
-test("open shadow content is captured; over the limit it is omitted with a notice", () => {
+test("open shadow content is captured; over the limit it keeps what fits, with a notice and a warning", () => {
   const { document } = parseHTML(`<!doctype html><html><body><main><p>${"Light text. ".repeat(20)}</p></main></body></html>`);
   shadowHost(document, 2);
   const within = pageToMarkdown(document, { url: URL_BASE, extract: "full" });
@@ -297,8 +297,10 @@ test("open shadow content is captured; over the limit it is omitted with a notic
   assert.equal(within.omissions.length, 0);
 
   const over = pageToMarkdown(document, { url: URL_BASE, extract: "full", sanitize: { shadowNodeLimit: 2 } });
-  assert.doesNotMatch(over.markdown, /Shadow paragraph/);
+  assert.match(over.markdown, /Shadow paragraph 0/);
+  assert.doesNotMatch(over.markdown, /Shadow paragraph 1/);
   assert.equal(over.omissions[0].kind, "shadow_content");
+  assert.match(over.warnings.join(), /main content may be missing/);
   assert.match(over.markdown, /Open shadow content omitted: capture limit \(1 host\(s\)\)\./);
 });
 
@@ -581,4 +583,60 @@ test("an ad marker on <body> doesn't remove the page; ads inside it still go", (
 test("result.version matches package.json", () => {
   const { version } = JSON.parse(fs.readFileSync("package.json", "utf8"));
   assert.equal(run("contract/hidden-text.html").version, version);
+});
+
+test("shadow limits apply per host: a large header doesn't use up the article's budget", () => {
+  const { document } = parseHTML(`<!doctype html><html><body><main><p>${"Light text. ".repeat(20)}</p></main></body></html>`);
+  shadowHost(document, 2);
+  shadowHost(document, 2);
+  const { markdown, omissions } = pageToMarkdown(document, { url: URL_BASE, extract: "full", sanitize: { shadowNodeLimit: 4 } });
+  assert.equal(markdown.match(/Shadow paragraph 1/g).length, 2);
+  assert.equal(omissions.length, 0);
+});
+
+test("a thread or product grid Readability mostly drops falls back to the main content, and says so", () => {
+  const result = run("regression/link-grid.html");
+  assert.equal(result.extraction.method, "main_content");
+  assert.equal(result.extraction.fallbackReason, "extracted_small_share_of_page");
+  assert.match(result.warnings.join(), /fell back to the main content/);
+  assert.match(result.markdown, /^# Bookcases$/m);
+  assert.match(result.markdown, /Product number 1\b/);
+  assert.match(result.markdown, /Product number 40/);
+  assert.doesNotMatch(result.markdown, /Skip to products|Site navigation|Newsletter form/);
+});
+
+test("minExtractShare: 0 keeps what Readability chose", () => {
+  const result = run("regression/link-grid.html", { minExtractShare: 0 });
+  assert.equal(result.extraction.method, "readability");
+  assert.doesNotMatch(result.markdown, /Product number 40/);
+});
+
+test("articles keep Readability's choice: no fixture falls back to the main content", () => {
+  for (const dir of GOLDEN_DIRS) {
+    for (const file of fs.readdirSync(path.join(FIXTURES, dir)).filter((f) => f.endsWith(".html"))) {
+      if (file === "link-grid.html") continue;
+      assert.notEqual(run(`${dir}/${file}`).extraction.method, "main_content", file);
+    }
+  }
+});
+
+test("headings survive clutter-like names, and permalink text goes", () => {
+  const { markdown } = run("regression/heading-names.html");
+  assert.match(markdown, /^## Usage with Prettier$/m);
+  assert.match(markdown, /^## Specifying title$/m);
+  assert.doesNotMatch(markdown, /Direct link|Section titled/);
+});
+
+test("pageFacts skips teasers, form controls and cookie settings", () => {
+  const { document } = parseHTML(`<!doctype html><html><head><title>A story</title></head><body>
+    <main><article>${"<p>The article has enough ordinary words in it to be chosen as the readable text of this page.</p>".repeat(6)}</article></main>
+    <aside>
+      <a href="/other"><h4>Another story's title</h4><p>Teaser for that story</p></a>
+      <h3>E-Mail</h3><div><input type="email"><button>Sign up now</button></div>
+      <div id="onetrust-banner"><h4>Required Cookies</h4><div>Always Active</div></div>
+      <h3>Version</h3><p>1.2.3</p>
+    </aside></body></html>`);
+  const { markdown } = pageToMarkdown(document, { url: URL_BASE, pageFacts: true });
+  assert.match(markdown, /- Version: 1\.2\.3/);
+  assert.doesNotMatch(markdown, /Teaser for|Sign up now|Always Active/);
 });

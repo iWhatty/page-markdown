@@ -79,8 +79,6 @@ export function createInertDocument(doc) {
   throw new Error("page-markdown: cannot create an inert document (no createHTMLDocument or DOMParser)");
 }
 
-const SHADOW_LIMIT = Symbol("shadow limit");
-
 function positiveLimit(value, name) {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new RangeError(`page-markdown: ${name} must be a positive integer`);
@@ -91,8 +89,8 @@ function positiveLimit(value, name) {
 /**
  * Clones `root` (a Document or Element) into a new inert document.
  * Open shadow roots replace their host's light children (native slots supply
- * assigned children). Limits apply only to shadow content; a host over the
- * limit is emptied and counted as an omission.
+ * assigned children). Limits apply only to shadow content, per outermost host:
+ * a host over the limit keeps what fits and is counted as an omission.
  *
  * @param {Document|Element} root
  * @param {import("./types.js").SanitizeOptions} [options]
@@ -127,6 +125,7 @@ export function sanitizeToInertDocument(root, options = {}) {
 
   let nodes = 0;
   let chars = 0;
+  let overLimit = false;
   let shadowHosts = 0;
 
   function isAssigningSlot(node) {
@@ -135,11 +134,17 @@ export function sanitizeToInertDocument(root, options = {}) {
   }
 
   function shadowNode(node, depth) {
-    if (++nodes > limits.nodes || depth > limits.depth) throw SHADOW_LIMIT;
+    if (++nodes > limits.nodes || depth > limits.depth) {
+      overLimit = true;
+      return null;
+    }
     if (isStripped(node, selectors, opts)) return inert.createDocumentFragment();
     const copy = shallow(node);
     chars += node.nodeType === 1 ? (copy.outerHTML || "").length : (node.nodeValue || "").length * 6;
-    if (chars > limits.chars) throw SHADOW_LIMIT;
+    if (chars > limits.chars) {
+      overLimit = true;
+      return null;
+    }
     let children = node.childNodes;
     let target = copy;
     if (isAssigningSlot(node)) {
@@ -152,7 +157,11 @@ export function sanitizeToInertDocument(root, options = {}) {
       children = node.content.childNodes;
       target = copy.content || copy;
     }
-    for (const child of Array.from(children || [])) target.appendChild(shadowNode(child, depth + 1));
+    for (const child of Array.from(children || [])) {
+      const childCopy = shadowNode(child, depth + 1);
+      if (childCopy) target.appendChild(childCopy);
+      if (overLimit) break;
+    }
     return isAssigningSlot(node) ? target : copy;
   }
 
@@ -162,16 +171,16 @@ export function sanitizeToInertDocument(root, options = {}) {
   while (pending.length) {
     const [live, copy] = /** @type {any[]} */ (pending.pop());
     if (live.shadowRoot) {
-      const fragment = inert.createDocumentFragment();
-      try {
-        for (const child of Array.from(live.shadowRoot.childNodes)) fragment.appendChild(shadowNode(child, 1));
-        while (copy.firstChild) copy.removeChild(copy.firstChild);
-        copy.appendChild(fragment);
-      } catch (error) {
-        if (error !== SHADOW_LIMIT) throw error;
-        while (copy.firstChild) copy.removeChild(copy.firstChild);
-        shadowHosts += 1;
+      nodes = 0;
+      chars = 0;
+      overLimit = false;
+      while (copy.firstChild) copy.removeChild(copy.firstChild);
+      for (const child of Array.from(live.shadowRoot.childNodes)) {
+        const childCopy = shadowNode(child, 1);
+        if (childCopy) copy.appendChild(childCopy);
+        if (overLimit) break;
       }
+      if (overLimit) shadowHosts += 1;
       continue;
     }
     const children = live.content?.childNodes || live.childNodes;

@@ -2,12 +2,13 @@
 // license, downloads), price and spec boxes, definition lists, two-column
 // tables. Readability keeps the article and drops these asides, which is right
 // for reading and wrong when the question is "which version?". Opt-in.
+import { PAGE_CHROME } from "./extract.js";
 import { htmlText } from "./refine.js";
 
 const MAX_FACTS = 24;
 const MAX_LABEL_CHARS = 40;
 const MAX_VALUE_CHARS = 100;
-const CHROME = "nav, footer, header, form, [role='navigation'], [role='contentinfo'], [role='banner'], [role='search']";
+const CHROME = `${PAGE_CHROME}, header, [id*='cookie'], [class*='cookie'], [id*='consent'], [class*='consent'], [id*='onetrust'], [class*='onetrust']`;
 
 function squash(text) {
   return String(text || "").replace(/\s+/g, " ").trim();
@@ -19,7 +20,7 @@ function isSentence(text) {
 }
 
 function shortValue(el) {
-  if (!el || el.querySelector("h1, h2, h3, h4, h5, h6, table, pre")) return "";
+  if (!el || el.querySelector("h1, h2, h3, h4, h5, h6, table, pre, form, button, input, select, textarea")) return "";
   // A list of links is navigation, not a fact.
   const links = el.tagName === "A" ? [el] : el.querySelectorAll("a");
   if (links.length > 1) return "";
@@ -32,6 +33,8 @@ function shortValue(el) {
 function* candidatePairs(doc) {
   // Heading followed by a short value: <h3>Version</h3><p>1.2.3</p>.
   for (const h of doc.querySelectorAll("h2, h3, h4, h5, h6")) {
+    // A linked heading titles something else: another story's teaser, a card.
+    if (h.closest("a") || h.querySelector("a")) continue;
     yield [h.textContent, shortValue(h.nextElementSibling), h];
   }
   for (const dt of doc.querySelectorAll("dt")) {

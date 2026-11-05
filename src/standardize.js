@@ -12,7 +12,9 @@ const LANGUAGE_CLASS = [
 const LANGUAGE_ALIASES = { python3: "python", py3: "python" };
 const NON_LANGUAGES = new Set(["default", "none", "text", "plain", "plaintext", "nohighlight", "notranslate"]);
 // Wrappers sites put around a heading next to "edit" or permalink widgets.
-const EDIT_WIDGETS = ".mw-editsection, .headerlink, .anchor, .heading-anchor, a.anchor, [aria-hidden='true'] a";
+// Removed whatever their text: "edit", "Section titled ...", a zero-width space.
+const ALWAYS_REMOVED_WIDGETS = ".mw-editsection, .hash-link, .sl-anchor-link";
+const EDIT_WIDGETS = `${ALWAYS_REMOVED_WIDGETS}, .headerlink, .anchor, .heading-anchor, a.anchor, [aria-hidden='true'] a`;
 // Content without text that a heading wrapper may still hold.
 const MEDIA = "img, picture, video, audio";
 // Highlighters mark up each code line with one of these.
@@ -140,7 +142,7 @@ function standardizeCode(doc, stats) {
  */
 function standardizeHeadings(doc, stats) {
   for (const widget of Array.from(doc.querySelectorAll(EDIT_WIDGETS))) {
-    if (!(widget.textContent || "").trim() || widget.matches?.(".mw-editsection")) {
+    if (!(widget.textContent || "").trim() || widget.matches?.(ALWAYS_REMOVED_WIDGETS)) {
       widget.remove();
       stats.headingWidgetsRemoved += 1;
     }

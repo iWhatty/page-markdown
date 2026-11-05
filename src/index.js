@@ -14,7 +14,7 @@ export const VERSION = "0.1.5";
 
 export { sanitizeToInertDocument, DEFAULT_SANITIZE_OPTIONS, isAdvertisementElement, createInertDocument } from "./sanitize.js";
 export { standardizeDocument } from "./standardize.js";
-export { extractContent, DEFAULT_MIN_EXTRACT_CHARS } from "./extract.js";
+export { extractContent, DEFAULT_MIN_EXTRACT_CHARS, DEFAULT_MIN_EXTRACT_SHARE } from "./extract.js";
 export { htmlToMarkdown, createTurndown, TURNDOWN_OPTIONS } from "./convert.js";
 export { cleanMarkdown, applyMode, mapOutsideFences } from "./clean.js";
 export { collectMetadata } from "./metadata.js";
@@ -63,6 +63,8 @@ function hasTopHeading(markdown) {
  *   "readable": Readability with full-page fallback; "full": the whole body;
  *   or a custom extractor receiving a copy of the standardized document.
  * @property {number} [minExtractChars=100] below this, fall back to the full page
+ * @property {number} [minExtractShare=0.4] when Readability keeps less than this
+ *   share of the page's main content, use the main content instead; 0 turns it off
  * @property {boolean} [includeFullPage=false] also return the full-page Markdown
  * @property {boolean} [includeTitle=true] start readable output with "# <headline>"
  * @property {boolean} [recoverLead=true] restore a dropped lead paragraph that matches the meta description
@@ -96,9 +98,14 @@ export function pageToMarkdown(input, options = {}) {
   const extraction = extractContent(inert, {
     extract: options.extract,
     minExtractChars: options.minExtractChars,
+    minExtractShare: options.minExtractShare,
     readability: options.readability,
   });
-  if (extraction.fallbackReason) warnings.push(`extraction fell back to the full page: ${extraction.fallbackReason}`);
+  if (extraction.fallbackReason) {
+    const target = extraction.method === "main_content" ? "the main content" : "the full page";
+    warnings.push(`extraction fell back to ${target}: ${extraction.fallbackReason}`);
+  }
+  if (omissions.shadowHosts) warnings.push(`shadow content cut off at the capture limit in ${omissions.shadowHosts} host(s); the page's main content may be missing`);
 
   const pageMetadata = collectMetadata(doc, { url });
   let extractedHtml = extraction.html;
@@ -111,7 +118,7 @@ export function pageToMarkdown(input, options = {}) {
   const main = toMarkdown(extractedHtml, mode);
   // Readability lifts the article's H1 out as its title; put a clean heading
   // back so the capture stands alone, unless the body still has a top-level one.
-  if (options.includeTitle !== false && extraction.method === "readability" && mode !== "text_only") {
+  if (options.includeTitle !== false && ["readability", "main_content"].includes(extraction.method) && mode !== "text_only") {
     if (headline && !hasTopHeading(main.markdown)) main.markdown = `# ${headline}\n\n${main.markdown}`;
   }
   let pageFacts = [];

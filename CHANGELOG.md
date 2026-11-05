@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+Fixes for silent content loss, found by the first live run in a real extension
+(HELIOS, 13 pages): four pages lost their main content and reported a normal
+extraction.
+
+- **Threads and product grids keep their content.** When Readability keeps less
+  than `minExtractShare` (default 0.4) of the page's main content and misses at
+  least 500 characters, the main content is used, without navigation, asides and
+  forms. `extraction.method` is then `main_content`, `fallbackReason` is
+  `extracted_small_share_of_page`, and `warnings` says so. Word recall on a Lobsters
+  thread goes from 36% to 100%, and on an IKEA category page from 50% to 95%. These
+  pages keep more clutter: IKEA's precision falls from 92% to 30%.
+- **Shadow limits no longer erase a whole host.** A host over the limit keeps what
+  fits, limits apply per outermost host so a large site header can't use up the
+  article's budget, and `warnings` now reports the cut. Not yet proven on the live
+  page that showed it (Salesforce); Node can't show real shadow roots.
+- **Headings survive clutter-like names.** Readability removed headings named like
+  Docusaurus's `anchorTargetHideOnScrollNavbar`. Permalink text ("Section titled",
+  "Direct link to") goes too.
+- **Page facts skip more junk:** headings inside or holding a link (another story's
+  teaser), values holding form controls, and cookie settings.
+- The browser bundle grows to about 68.3 KB minified; the size ceiling is now
+  70 KB.
 - **The browser run no longer launches by default.** Launching browsers from agent
   sessions has crashed this machine. `npm run test:browser` now needs
   `PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH=1`, set by a person in their own shell;
