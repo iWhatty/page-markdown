@@ -4,9 +4,13 @@
 // --dump-dom and reads the results back. The launch goes through the fleet's
 // seeded helper (scripts/safe-chromium.mjs, a managed copy from
 // static-web-watt3d) with one reusable profile, kept outside the repo.
-//   npm run test:browser
-//   PAGE_MARKDOWN_BROWSER=/path/to/chrome npm run test:browser
-// The built page stays at .browser-test/index.html for opening by hand.
+// Launching browsers from agent sessions has crashed this machine, so the
+// launch needs a flag that only the operator sets, in their own shell. Agents
+// must not set it, or add it to scripts or config.
+//   PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH=1 npm run test:browser
+//   PAGE_MARKDOWN_BROWSER=/path/to/chrome PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH=1 npm run test:browser
+// Without the flag it only builds the page: .browser-test/index.html, for
+// opening by hand in a browser that is already running.
 import { build } from "esbuild";
 import fs from "node:fs";
 import os from "node:os";
@@ -74,6 +78,12 @@ const page = `<!doctype html>
 fs.mkdirSync(OUT_DIR, { recursive: true });
 const pagePath = path.resolve(OUT_DIR, "index.html");
 fs.writeFileSync(pagePath, page);
+
+if (process.env.PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH !== "1") {
+  console.error(`browser_launch_disabled: built ${pagePath}, launched nothing.
+Open that page in a running browser, or set PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH=1 in your own shell. Agents must not set it.`);
+  process.exit(1);
+}
 
 // Choose before launching: the profile stays locked until the launch's process
 // has closed, so there is exactly one launch per run and no retry on another.

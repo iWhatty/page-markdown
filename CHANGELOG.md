@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **The browser run no longer launches by default.** Launching browsers from agent
+  sessions has crashed this machine. `npm run test:browser` now needs
+  `PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH=1`, set by a person in their own shell;
+  without it the run builds its page, launches nothing and exits with an error.
+  It is no longer part of `npm run ci` or `prepublishOnly`.
+
 ## 0.1.5 — 2026-11-04
 
 Content-fidelity fixes, each with a new fixture run in Node and in the browser:

@@ -146,8 +146,11 @@ checks what Node can't show:
   children in rendered order;
 - closed shadow roots stay out of the capture.
 
-Set `PAGE_MARKDOWN_BROWSER` to choose the browser. The built page is kept at
-`.browser-test/index.html` for opening by hand.
+It launches a browser, so it runs only when a person sets
+`PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH=1` in their own shell; agents must not set it.
+Without the flag it builds `.browser-test/index.html`, which you can open in a
+browser that is already running, and exits with an error. Set
+`PAGE_MARKDOWN_BROWSER` to choose the browser.
 
 `npm run bench` scores the package against two baselines: Turndown over the page
 body, and Readability then Turndown. It runs 15 fixture checks and 117 probes on
@@ -178,8 +181,10 @@ still fails there:
 Browser bundle: about 67 KB minified, 24 KB gzip (`npm run size`, ceiling 68 KB
 minified). Readability is most of it.
 
-`npm run ci` runs the contract suite, the type check, the browser run and the size check, and must exit 0
-before a commit. It runs locally; the repo deliberately has no cloud CI.
+`npm run ci` runs the contract suite, the type check and the size check, and must
+exit 0 before a commit. It launches no browser, so run the browser check yourself
+before a release when the DOM handling has changed. It runs locally; the repo
+deliberately has no cloud CI.
 
 ## Known limits (v0.1)
 
