@@ -66,7 +66,7 @@ pageToMarkdown(doc, { url: "https://example.com/article" });
 | `pageFacts` | `false` | Append `## Page facts`: short label/value pairs outside the article (a sidebar's version or license, spec rows, infobox rows) that the extractor dropped. `extraction.pageFacts` counts them |
 | `removeHiddenText` | `false` | Remove text hidden from people but read by models: runs of tag characters, variation selectors, invisible operators and reserved tag-plane code points, found by [text-sanctifier](https://github.com/iWhatty/text-sanctifier)'s `findHiddenRuns`. Applies to `markdown` (fenced code included), `fullPageMarkdown` and `metadata`. The England, Scotland and Wales flags and a lone emoji or text presentation selector are kept. `omissions` gets one entry per kind (`hidden_tag`, `hidden_variation_selector`, `hidden_invisible_operator`, `hidden_reserved_tag_plane`) with `count` runs and `chars` code points removed from `markdown` |
 | `mode` | `"full"` | `"no_links"` keeps link text; `"text_only"` also drops structure. Fenced code is never changed |
-| `sanitize` | see `DEFAULT_SANITIZE_OPTIONS` | `stripAds`, `extraStripSelectors` (e.g. `["[data-app-overlay]"]`), shadow limits, which apply per outermost host |
+| `sanitize` | see `DEFAULT_SANITIZE_OPTIONS` | `stripAds`, `extraStripSelectors` (e.g. `["[data-app-overlay]"]`), shadow limits, which apply per host in the page's own tree and don't charge slotted page content |
 | `readability` | `{}` | Passed to Readability |
 
 The stages are also exported for advanced use: `sanitizeToInertDocument`,

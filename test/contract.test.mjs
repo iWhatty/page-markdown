@@ -594,6 +594,36 @@ test("shadow limits apply per host: a large header doesn't use up the article's 
   assert.equal(omissions.length, 0);
 });
 
+test("slotted page content isn't charged to the shadow limit, and a slotted host has its own", () => {
+  const { document } = parseHTML(`<!doctype html><html><body><main><p>${"Light text. ".repeat(20)}</p></main></body></html>`);
+  const host = document.createElement("page-shell");
+  document.querySelector("main").appendChild(host);
+  for (let i = 0; i < 6; i += 1) {
+    const p = document.createElement("p");
+    p.textContent = `Slotted paragraph ${i}.`;
+    host.appendChild(p);
+  }
+  shadowHost(document, 3);
+  const inner = document.querySelector("main").lastChild;
+  host.appendChild(inner);
+  const root = document.createDocumentFragment();
+  root.host = host;
+  const slot = document.createElement("slot");
+  slot.getRootNode = () => root;
+  slot.assignedNodes = () => Array.from(host.childNodes);
+  const after = document.createElement("p");
+  after.textContent = "After the slot.";
+  root.append(slot, after);
+  Object.defineProperty(host, "shadowRoot", { value: root, configurable: true });
+
+  const { markdown, omissions } = pageToMarkdown(document, { url: URL_BASE, extract: "full", sanitize: { shadowNodeLimit: 3 } });
+  assert.match(markdown, /Slotted paragraph 5\./);
+  assert.match(markdown, /Shadow paragraph 0/);
+  assert.doesNotMatch(markdown, /Shadow paragraph 1/);
+  assert.match(markdown, /After the slot\./);
+  assert.equal(omissions[0].count, 1);
+});
+
 test("a thread or product grid Readability mostly drops falls back to the main content, and says so", () => {
   const result = run("regression/link-grid.html");
   assert.equal(result.extraction.method, "main_content");

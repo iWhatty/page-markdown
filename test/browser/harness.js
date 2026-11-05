@@ -100,6 +100,15 @@
     stage.textContent = "";
   });
 
+  check("slotted page content isn't charged to the shadow limit", () => {
+    stage.innerHTML = filler;
+    shadowHost("open", "<slot></slot><p>After the slot.</p>", "<p>One.</p><p>Two.</p><p>Three.</p>");
+    const { markdown, omissions } = pageToMarkdown(stage, { url, extract: "full", sanitize: { shadowNodeLimit: 3 } });
+    ok(markdown.includes("Three.") && markdown.includes("After the slot."), `slotted text lost:\n${markdown}`);
+    ok(omissions.length === 0, "unexpected omission");
+    stage.textContent = "";
+  });
+
   check("closed shadow roots are not captured", () => {
     stage.innerHTML = filler;
     shadowHost("closed", "<p>Closed shadow secret.</p>");

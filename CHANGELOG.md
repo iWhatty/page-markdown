@@ -14,9 +14,11 @@ extraction.
   thread goes from 36% to 100%, and on an IKEA category page from 50% to 95%. These
   pages keep more clutter: IKEA's precision falls from 92% to 30%.
 - **Shadow limits no longer erase a whole host.** A host over the limit keeps what
-  fits, limits apply per outermost host so a large site header can't use up the
-  article's budget, and `warnings` now reports the cut. Not yet proven on the live
-  page that showed it (Salesforce); Node can't show real shadow roots.
+  fits, limits apply per host in the page's own tree so a large site header can't
+  use up the article's budget, and `warnings` now reports the cut.
+- **Slotted page content no longer counts against the shadow limit.** Material Web
+  puts its whole article in one host's slot, so the limit cut it off partway
+  through. Reproduced in Node from the served page, not yet re-run live.
 - **Headings survive clutter-like names.** Readability removed headings named like
   Docusaurus's `anchorTargetHideOnScrollNavbar`. Permalink text ("Section titled",
   "Direct link to") goes too.

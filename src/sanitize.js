@@ -89,8 +89,10 @@ function positiveLimit(value, name) {
 /**
  * Clones `root` (a Document or Element) into a new inert document.
  * Open shadow roots replace their host's light children (native slots supply
- * assigned children). Limits apply only to shadow content, per outermost host:
- * a host over the limit keeps what fits and is counted as an omission.
+ * assigned children). Limits apply only to shadow content, per host in the
+ * page's own tree, so slotted page content is not charged: docs sites put a
+ * whole article in one host's slot. A host over the limit keeps what fits and
+ * is counted as an omission.
  *
  * @param {Document|Element} root
  * @param {import("./types.js").SanitizeOptions} [options]
@@ -133,14 +135,33 @@ export function sanitizeToInertDocument(root, options = {}) {
       && typeof node.assignedNodes === "function" && Boolean(node.getRootNode?.().host);
   }
 
+  function copyShadowRoot(host, target, depth) {
+    const outer = [nodes, chars];
+    nodes = 0;
+    chars = 0;
+    for (const child of Array.from(host.shadowRoot.childNodes)) {
+      const childCopy = shadowNode(child, depth);
+      if (childCopy) target.appendChild(childCopy);
+      if (overLimit) break;
+    }
+    if (overLimit) shadowHosts += 1;
+    overLimit = false;
+    [nodes, chars] = outer;
+  }
+
   function shadowNode(node, depth) {
-    if (++nodes > limits.nodes || depth > limits.depth) {
+    const inPage = node.getRootNode?.().nodeType === 9;
+    if (depth > limits.depth || (!inPage && ++nodes > limits.nodes)) {
       overLimit = true;
       return null;
     }
     if (isStripped(node, selectors, opts)) return inert.createDocumentFragment();
     const copy = shallow(node);
-    chars += node.nodeType === 1 ? (copy.outerHTML || "").length : (node.nodeValue || "").length * 6;
+    if (inPage && node.shadowRoot) {
+      copyShadowRoot(node, copy, depth + 1);
+      return copy;
+    }
+    if (!inPage) chars += node.nodeType === 1 ? (copy.outerHTML || "").length : (node.nodeValue || "").length * 6;
     if (chars > limits.chars) {
       overLimit = true;
       return null;
@@ -171,16 +192,7 @@ export function sanitizeToInertDocument(root, options = {}) {
   while (pending.length) {
     const [live, copy] = /** @type {any[]} */ (pending.pop());
     if (live.shadowRoot) {
-      nodes = 0;
-      chars = 0;
-      overLimit = false;
-      while (copy.firstChild) copy.removeChild(copy.firstChild);
-      for (const child of Array.from(live.shadowRoot.childNodes)) {
-        const childCopy = shadowNode(child, 1);
-        if (childCopy) copy.appendChild(childCopy);
-        if (overLimit) break;
-      }
-      if (overLimit) shadowHosts += 1;
+      copyShadowRoot(live, copy, 1);
       continue;
     }
     const children = live.content?.childNodes || live.childNodes;
