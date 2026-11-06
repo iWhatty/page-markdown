@@ -14,6 +14,15 @@ export const TURNDOWN_OPTIONS = Object.freeze({
 });
 
 function gfmInlineRules(turndown) {
+  // Link text is one line: a link around blocks would otherwise split across lines.
+  turndown.addRule("pmInlineLink", {
+    filter: (node) => node.nodeName === "A" && Boolean(node.getAttribute("href")),
+    replacement(content, node) {
+      const href = node.getAttribute("href").replace(/([()])/g, "\\$1");
+      const title = (node.getAttribute("title") || "").replace(/\s*\n+\s*/g, " ").replace(/"/g, '\\"');
+      return `[${content.trim().replace(/\s*\n+\s*/g, " ")}](${href}${title ? ` "${title}"` : ""})`;
+    },
+  });
   turndown.addRule("pmStrikethrough", {
     filter: ["del", "s", "strike"],
     replacement: (content) => `~~${content}~~`,

@@ -1,5 +1,6 @@
 // Stage 2: normalise markup on the inert clone so extraction and conversion
 // see consistent structure. Runs before extraction.
+import { isHiddenElement } from "./extract.js";
 
 const LAZY_SRC_ATTRS = ["data-src", "data-lazy-src", "data-original", "data-lazy", "data-url"];
 const LANGUAGE_CLASS = [
@@ -19,6 +20,15 @@ const EDIT_WIDGETS = `${ALWAYS_REMOVED_WIDGETS}, .headerlink, .anchor, .heading-
 const MEDIA = "img, picture, video, audio";
 // Highlighters mark up each code line with one of these.
 const CODE_LINE_ELEMENTS = new Set(["div", "p", "li", "tr", "section"]);
+const TAB_PANELS = "[role='tabpanel'], sp-tab-panel, sl-tab-panel";
+const TABS = "[role='tab'], sp-tab, sl-tab";
+// Longer than this, an inactive panel is a page of its own (an API or change log
+// tab), not a variant of the one shown (pnpm, Yarn).
+const MAX_INACTIVE_PANEL_CHARS = 5000;
+const MAX_TAB_LABEL_CHARS = 40;
+// Asides that are part of the text: notes and warnings. Readability drops every <aside>.
+const NOTE_ASIDE = /(?:^|[\s_-])(?:aside|admonition|callout|note|tip|caution|warning|danger)(?:$|[\s_-])/i;
+const OTHER_ASIDE = /related|sidebar|share|promo|newsletter|toc\b/i;
 // As URL parsers read a scheme: control characters and spaces don't count.
 const isUnsafeUrl = (value) => /^(?:javascript|vbscript|data):/i.test(String(value).replace(/[\x00-\x20]+/g, ""));
 
@@ -136,6 +146,25 @@ function standardizeCode(doc, stats) {
 }
 
 /**
+ * A link to the heading's own id, inside it or right beside it, is a permalink
+ * whatever its class or wording ("Link to ...", "Section titled ...", "#"). A
+ * heading whose whole text is that link keeps the text. Left in place, the link
+ * makes a short heading's wrapper look like clutter to Readability.
+ */
+function removeOwnPermalinks(heading, stats) {
+  const id = heading.getAttribute("id");
+  if (!id) return;
+  const title = (heading.textContent || "").trim();
+  const inside = Array.from(heading.querySelectorAll("[href]"));
+  for (const link of [...inside, heading.previousElementSibling, heading.nextElementSibling]) {
+    if (link?.getAttribute("href") !== `#${id}`) continue;
+    if (inside.includes(link) && (link.textContent || "").trim() === title) link.replaceWith(...Array.from(link.childNodes));
+    else link.remove();
+    stats.headingWidgetsRemoved += 1;
+  }
+}
+
+/**
  * Headings wrapped with edit/permalink widgets (Wikipedia's div.mw-heading,
  * Sphinx headerlinks): drop the widgets, then replace a wrapper whose only
  * remaining element is the heading with the heading itself.
@@ -148,6 +177,7 @@ function standardizeHeadings(doc, stats) {
     }
   }
   for (const heading of Array.from(doc.querySelectorAll("h1, h2, h3, h4, h5, h6"))) {
+    removeOwnPermalinks(heading, stats);
     const parent = heading.parentElement;
     if (!parent || parent.localName !== "div") continue;
     const others = Array.from(parent.children).filter((el) => el !== heading);
@@ -156,6 +186,71 @@ function standardizeHeadings(doc, stats) {
       parent.replaceWith(heading);
       stats.headingsUnwrapped += 1;
     }
+  }
+}
+
+function isInactivePanel(panel) {
+  if (isHiddenElement(panel) || panel.getAttribute("aria-hidden") === "true") return true;
+  // Custom elements that mark only the group: <sp-tabs selected="overview">.
+  const value = panel.getAttribute("value");
+  const selected = value && panel.parentElement?.closest("[selected]")?.getAttribute("selected");
+  return Boolean(selected) && selected !== value;
+}
+
+function tabOf(panel, tabs) {
+  const id = panel.getAttribute("id");
+  const labelledBy = panel.getAttribute("aria-labelledby");
+  const value = panel.getAttribute("value") || panel.getAttribute("name");
+  const named = tabs.find((tab) => (labelledBy && tab.getAttribute("id") === labelledBy)
+    || (id && (tab.getAttribute("aria-controls") === id || tab.getAttribute("href") === `#${id}`))
+    || (value && (tab.getAttribute("value") === value || tab.getAttribute("panel") === value)));
+  if (named) return named;
+  // Docusaurus ties them by position alone.
+  const parent = panel.parentElement;
+  const index = Array.from(parent?.children || []).filter((el) => el.matches?.(TAB_PANELS)).indexOf(panel);
+  for (let node = parent, depth = 0; node && depth < 4; node = node.parentElement, depth += 1) {
+    const list = node.querySelector("[role='tablist']");
+    if (list) return list.querySelectorAll("[role='tab']")[index];
+  }
+  return null;
+}
+
+/**
+ * Tabs read as one document: inactive panels are shown, each under its tab's
+ * name, in place of a tab strip that points nowhere. A long inactive panel is
+ * left out, and named in stats.omittedTabs.
+ */
+function standardizeTabPanels(doc, stats) {
+  const panels = Array.from(doc.querySelectorAll(TAB_PANELS));
+  if (!panels.length) return;
+  const tabs = Array.from(doc.querySelectorAll(TABS));
+  for (const panel of panels) {
+    const label = (tabOf(panel, tabs)?.textContent || "").replace(/\s+/g, " ").trim().slice(0, MAX_TAB_LABEL_CHARS);
+    const text = (panel.textContent || "").replace(/\s+/g, " ").trim();
+    if (isInactivePanel(panel)) {
+      if (text.length > MAX_INACTIVE_PANEL_CHARS) {
+        stats.omittedTabs.push(label);
+        panel.remove();
+        continue;
+      }
+      for (const attr of ["hidden", "aria-hidden", "style"]) panel.removeAttribute(attr);
+    }
+    if (label && panels.length > 1 && !text.toLowerCase().startsWith(label.toLowerCase())) {
+      const heading = doc.createElement("p");
+      heading.appendChild(doc.createElement("strong")).textContent = label;
+      panel.insertBefore(heading, panel.firstChild);
+    }
+  }
+  for (const el of Array.from(doc.querySelectorAll(`[role='tablist'], ${TABS}`))) el.remove();
+}
+
+function standardizeAsides(doc) {
+  for (const aside of Array.from(doc.querySelectorAll("main aside, article aside, [role='main'] aside"))) {
+    const name = `${aside.getAttribute("class") || ""} ${aside.getAttribute("aria-label") || ""} ${aside.getAttribute("role") || ""}`;
+    if (!NOTE_ASIDE.test(name) || OTHER_ASIDE.test(name)) continue;
+    const quote = doc.createElement("blockquote");
+    quote.append(...Array.from(aside.childNodes));
+    aside.replaceWith(quote);
   }
 }
 
@@ -173,7 +268,10 @@ export function standardizeDocument(doc, options = {}) {
     preWrapped: 0,
     headingWidgetsRemoved: 0,
     headingsUnwrapped: 0,
+    omittedTabs: /** @type {string[]} */ ([]),
   };
+  standardizeTabPanels(doc, stats);
+  standardizeAsides(doc);
   standardizeHeadings(doc, stats);
   standardizeCode(doc, stats);
   standardizeImages(doc, base, stats);

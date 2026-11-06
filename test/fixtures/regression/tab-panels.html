@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><title>Installing the widget</title></head>
+<body>
+  <main><article>
+    <h1>Installing the widget</h1>
+    <p>The widget installs from the package registry with whichever package manager the project already uses, and it needs nothing else to get started on a new project.</p>
+    <my-tabs>
+      <ul role="tablist">
+        <li role="presentation"><a role="tab" id="tab-1" href="#panel-1" aria-selected="true">npm</a></li>
+        <li role="presentation"><a role="tab" id="tab-2" href="#panel-2" aria-selected="false">pnpm</a></li>
+      </ul>
+      <div role="tabpanel" id="panel-1" aria-labelledby="tab-1"><p>Run npm install widget in the project folder, which adds it to the dependencies.</p></div>
+      <div role="tabpanel" id="panel-2" aria-labelledby="tab-2" hidden><p>Run pnpm add widget in the project folder, which adds it to the dependencies.</p></div>
+    </my-tabs>
+    <p>Sites that tie their tabs to panels by position alone are read the same way, in the order that the tab strip gives them in the page's markup.</p>
+    <div>
+      <ul role="tablist"><li role="tab" aria-selected="true">Apple</li><li role="tab" aria-selected="false">Orange</li></ul>
+      <div>
+        <div role="tabpanel"><p>This is an apple.</p></div>
+        <div role="tabpanel" hidden><p>This is an orange.</p></div>
+      </div>
+    </div>
+    <aside class="site-aside site-aside--note" aria-label="Note"><p>Restart the dev server after installing, or the widget will not be found.</p></aside>
+    <aside class="related-stories"><p>Other stories that a reader might like to read next.</p></aside>
+    <p>That is all it takes to install the widget, and the next page goes on to show how to configure it for the project that is going to be using it.</p>
+  </article></main>
+</body>
+</html>

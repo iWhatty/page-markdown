@@ -72,6 +72,8 @@ export {};
  * Check `kind` before reading `chars`: only hidden-text omissions have it.
  * @typedef {{ kind: "shadow_content", count: number, note: string }
  *   | { kind: "json_line", count: number, note: string }
+ *   | { kind: "inactive_tabs", count: number, note: string }
+ *   | { kind: "comments", count: number, note: string }
  *   | HiddenTextOmission} PageMarkdownOmission
  */
 
@@ -83,6 +85,8 @@ export {};
  * @property {number} extractedHtmlChars
  * @property {number} convertedChars
  * @property {number} markdownChars
+ * @property {number} pageTextChars the page's text at capture time: a capture is a
+ *   snapshot of the DOM, so a caller can re-capture until this number settles
  * @property {StandardizationStats} standardization
  */
 

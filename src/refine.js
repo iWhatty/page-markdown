@@ -100,10 +100,16 @@ function stripSiteSuffix(title, siteName) {
 export function chooseHeadline(doc, meta = {}) {
   const h1 = firstHeading(doc);
   const titles = [meta.documentTitle, meta.title, meta.extractedTitle].map(norm).filter(Boolean);
-  if (h1 && h1.length <= 200 && norm(h1) !== norm(meta.siteName) && titles.some((t) => t.includes(norm(h1)))) {
-    return h1;
+  const site = norm(meta.siteName);
+  if (h1 && h1.length <= 200 && norm(h1) !== site) {
+    if (titles.some((t) => t.includes(norm(h1)))) return h1;
+    // An H1 with a badge after its title: "Tabs Since v1.0.0" in "Overview | Tabs | Site".
+    const segment = titles.flatMap((t) => t.split(/\s(?:[|–—·»-]|::)\s/))
+      .find((s) => s && s !== site && norm(h1).startsWith(`${s} `));
+    if (segment) return h1.slice(0, segment.length);
   }
   const og = String(meta.title || "").trim();
-  if (og && og !== String(meta.documentTitle || "").trim()) return stripSiteSuffix(og, meta.siteName);
+  // Some sites give every page the same og:title, the site's own name.
+  if (og && og !== String(meta.documentTitle || "").trim() && norm(og) !== site) return stripSiteSuffix(og, meta.siteName);
   return stripSiteSuffix(meta.extractedTitle || meta.documentTitle || og, meta.siteName);
 }

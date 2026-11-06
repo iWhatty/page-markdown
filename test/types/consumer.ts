@@ -85,7 +85,7 @@ export const unchecked: string = result.fullPageMarkdown;
 
 // Omissions narrow on `kind`; only hidden-text ones count code points.
 for (const omission of result.omissions) {
-  if (omission.kind === "shadow_content" || omission.kind === "json_line") {
+  if (omission.kind === "shadow_content" || omission.kind === "json_line" || omission.kind === "inactive_tabs" || omission.kind === "comments") {
     // @ts-expect-error no chars on this kind
     omission.chars;
   } else {

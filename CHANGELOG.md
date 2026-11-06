@@ -18,14 +18,40 @@ extraction.
   use up the article's budget, and `warnings` now reports the cut.
 - **Slotted page content no longer counts against the shadow limit.** Material Web
   puts its whole article in one host's slot, so the limit cut it off partway
-  through. Reproduced in Node from the served page, not yet re-run live.
+  through. Proven live on Material Web, Adobe Spectrum and Red Hat (no cut), though
+  no live page has yet gone over the limit.
 - **Headings survive clutter-like names.** Readability removed headings named like
   Docusaurus's `anchorTargetHideOnScrollNavbar`. Permalink text ("Section titled",
   "Direct link to") goes too.
+- **Permalinks are recognised by where they point.** A link to a heading's own id,
+  inside or beside it, is removed whatever its class or wording. Short headings
+  beside one ("Types", "Usage") were being dropped by Readability as clutter:
+  five on Material Web's button page.
 - **Page facts skip more junk:** headings inside or holding a link (another story's
   teaser), values holding form controls, and cookie settings.
-- The browser bundle grows to about 68.3 KB minified; the size ceiling is now
-  70 KB.
+- **An article above its comments stays an article.** Comments outweighing the
+  article made the main-content fallback fire, four times the length on a real
+  page. Readability's result now stands when what it kept isn't itself a comment,
+  and `omissions` gets `comments`.
+- **Hidden text no longer counts or comes through in the fallback,** except code
+  behind a "Show code" toggle.
+- **Tabs read as one document.** Inactive panels are kept under their tab's name,
+  in place of a tab strip of dead links. A panel over 5,000 characters is left out
+  and named (`stats.standardization.omittedTabs`, `omissions` kind `inactive_tabs`).
+- **Note asides survive,** as blockquotes: Readability removes every `<aside>`.
+- **What changes the content says so in the Markdown too:** a fallback, a removed
+  JSON line, left-out tabs and comments each add a closing line, since a caller may
+  pass on only the Markdown. The shadow notice stays last.
+- **Too little from Readability uses the page's `<main>`,** when it marks one with
+  enough text, before the full page.
+- **`stats.pageTextChars`** counts the page's text. A capture is a snapshot of the
+  DOM at call time: a caller can re-capture until the number settles.
+- **Headlines:** a site-wide `og:title` no longer replaces the page's H1, and a badge
+  after an H1's title is dropped. A heading that is wholly a link to itself becomes
+  plain text.
+- A link around block content stays on one line, and `.ad-label` counts as an ad.
+- The browser bundle grows to about 72.7 KB minified; the size ceiling is now
+  74 KB.
 - **The browser run no longer launches by default.** Launching browsers from agent
   sessions has crashed this machine. `npm run test:browser` now needs
   `PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH=1`, set by a person in their own shell;

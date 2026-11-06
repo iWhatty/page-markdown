@@ -91,10 +91,10 @@ The stages are also exported for advanced use: `sanitizeToInertDocument`,
 | `extraction.fallbackReason` | `string?` | Why extraction fell back: `extracted_small_share_of_page` (to the main content), or `extractor_found_nothing`, `extracted_text_below_minimum` or `extractor_error: …` (to the full page) |
 | `extraction.leadRecovered` | `true?` | A dropped lead paragraph was restored |
 | `extraction.pageFacts` | `number?` | How many facts `pageFacts` appended |
-| `omissions[]` | `{ kind, count, note, chars? }` | What was left out or removed. `kind` is `shadow_content`, `json_line` or a `hidden_*` kind; only `hidden_*` entries have `chars` |
+| `omissions[]` | `{ kind, count, note, chars? }` | What was left out or removed. `kind` is `shadow_content`, `json_line`, `inactive_tabs`, `comments` or a `hidden_*` kind; only `hidden_*` entries have `chars`. All but `hidden_*` also add a closing line to `markdown`, as a fallback does, so a caller that passes on only the Markdown still says so |
 | `warnings[]` | `string` | Read these before trusting a capture: a fallback, or shadow content cut off at the capture limit, in which case the main content may be missing |
 | `stats.mode` | `string` | The output mode used |
-| `stats.extractedHtmlChars`, `convertedChars`, `markdownChars` | `number` | Sizes at each step. `markdownChars` is measured before `removeHiddenText` and the shadow omission notice |
+| `stats.extractedHtmlChars`, `convertedChars`, `markdownChars` | `number` | Sizes at each step. `markdownChars` is the returned Markdown's length |
 | `stats.standardization` | `object` | Counts of what standardizing changed: `lazyImagesResolved`, `inlineImagesDropped`, `scriptLinksUnwrapped`, `emptyLinksRemoved`, `preWrapped`, `headingWidgetsRemoved`, `headingsUnwrapped` |
 
 A `?` marks a field that is absent, not empty, when it doesn't apply.
@@ -177,13 +177,9 @@ It gains recall (96.3% against 85.4%) by keeping more, and pays in precision
 because the main-content fallback keeps the page's banners and filters along with
 its products. What it still fails on these pages:
 
-- **Non-default tab panels dropped** (Starlight).
 - **Promo boxes kept** inside a BBC Arabic article.
 
-A live run in HELIOS on 13 pages found more, before these fixes: Starlight's
-rendered asides are lost, and "REG AD" labels stay on The Register.
-
-Browser bundle: about 68 KB minified, 24 KB gzip (`npm run size`, ceiling 70 KB
+Browser bundle: about 68 KB minified, 24 KB gzip (`npm run size`, ceiling 74 KB
 minified). Readability is most of it.
 
 `npm run ci` runs the contract suite, the type check and the size check, and must
@@ -203,8 +199,16 @@ deliberately has no cloud CI.
 - **Some legacy markup loses paragraph breaks.** Readability can drop runs of
   `<br>` between inline elements in old HTML. The text survives; a paragraph
   break may not.
-- **Hidden content stays.** The pipeline reads the static DOM, so elements
-  hidden only by CSS remain unless extraction drops them.
+- **A capture is a snapshot.** It reads the DOM as it is at call time, and it
+  can't tell whether the page has finished rendering. A page read too early looks
+  like a normal, short result. To wait, re-capture until `stats.pageTextChars`
+  settles.
+- **Captures hold whatever is in the DOM,** including text that other extensions
+  add. Use `sanitize.extraStripSelectors` for what you know about.
+- **Hidden content stays where only CSS hides it.** The pipeline reads the static
+  DOM. The `hidden` attribute and inline `display: none` are understood; a tab
+  panel hidden by a stylesheet alone is kept unless its group names the selected
+  one.
 - **`removeHiddenText` covers hidden runs only.** Zero-width spaces, bidi
   controls and look-alike spaces pass through. It also removes runs that are
   legitimate in some scripts: ideographic variation selectors in CJK names and

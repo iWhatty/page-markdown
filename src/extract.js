@@ -4,12 +4,22 @@
 // small share of that (forum threads, product grids).
 // The class only: skips isProbablyReaderable, which the pipeline does not use.
 import Readability from "@mozilla/readability/Readability.js";
+import { htmlText } from "./refine.js";
 
 export const DEFAULT_MIN_EXTRACT_CHARS = 100;
 export const DEFAULT_MIN_EXTRACT_SHARE = 0.4;
 // A small share of a short page may be all there is: don't fall back for less.
 const MIN_MISSED_CHARS = 500;
 export const PAGE_CHROME = "nav, footer, form, [role='navigation'], [role='banner'], [role='contentinfo'], [role='search']";
+const MAIN = "main, [role='main']";
+const COMMENTS = "#comments, #disqus_thread, .comments, .commentlist, .comment-list, .comment, [id^='comment-']";
+const HIDDEN_STYLE = /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i;
+
+// As far as a clone can tell, with no stylesheets. Not aria-hidden: shops put
+// the price people see in it, beside a longer one for screen readers.
+export function isHiddenElement(el) {
+  return el.hasAttribute("hidden") || HIDDEN_STYLE.test(el.getAttribute("style") || "");
+}
 
 function textLength(html = "") {
   return String(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().length;
@@ -19,16 +29,34 @@ function bodyHtml(doc) {
   return (doc.body || doc.documentElement)?.innerHTML || "";
 }
 
-// <main> or else the body, without navigation and other page chrome. A header
-// inside <main> usually belongs to the content; one in the body doesn't.
-function mainContentHtml(doc) {
-  const main = doc.querySelector("main, [role='main']");
+// <main> or else the body, without navigation, other page chrome or anything
+// hidden, except code behind a "Show code" toggle. A header inside <main> usually
+// belongs to the content; one in the body doesn't.
+function mainContentRoot(doc) {
+  const main = doc.querySelector(MAIN);
   const root = (main || doc.body || doc.documentElement).cloneNode(true);
-  for (const el of Array.from(root.querySelectorAll(`${PAGE_CHROME}, aside, [role='complementary']${main ? "" : ", header"}`))) el.remove();
+  for (const el of Array.from(root.querySelectorAll(`${PAGE_CHROME}, aside, template, [role='complementary']${main ? "" : ", header"}`))) el.remove();
+  for (const el of Array.from(root.querySelectorAll("[hidden], [style]"))) {
+    if (isHiddenElement(el) && !el.querySelector("pre")) el.remove();
+  }
   for (const link of Array.from(root.querySelectorAll("a[href^='#']"))) {
     if (/^\s*skip\b/i.test(link.textContent || "")) link.remove();
   }
-  return root.innerHTML || "";
+  return root;
+}
+
+const withoutSpaces = (text) => text.replace(/\s+/g, "");
+
+// An article above its comments, where Readability kept the article: what's left
+// without them. null for a thread, where what Readability kept is itself a comment.
+function articleWithoutComments(root, articleHtml) {
+  const comments = Array.from(root.querySelectorAll(COMMENTS));
+  if (!comments.length) return null;
+  const kept = withoutSpaces(htmlText(articleHtml));
+  const sample = kept.slice(kept.length >> 1, (kept.length >> 1) + 60);
+  if (comments.some((el) => withoutSpaces(el.textContent || "").includes(sample))) return null;
+  for (const el of comments) el.remove();
+  return root;
 }
 
 // Readability scores class and id names, and removes headings whose names look
@@ -50,8 +78,8 @@ function copyDocument(doc) {
 }
 
 /**
- * @typedef {{ html: string, method: "readability"|"full_page"|(string & {}), fallbackReason?: string, title?: string,
- *   byline?: string, published?: string, siteName?: string, lang?: string, excerpt?: string }} Extraction
+ * @typedef {{ html: string, method: "readability"|"main_content"|"full_page"|(string & {}), fallbackReason?: string, title?: string,
+ *   byline?: string, published?: string, siteName?: string, lang?: string, excerpt?: string, commentsOmitted?: boolean }} Extraction
  */
 
 /**
@@ -95,15 +123,30 @@ export function extractContent(doc, options = {}) {
     failure = `extractor_error: ${/** @type {any} */ (error)?.message || error}`;
   }
 
-  if (!result?.html) return { ...full(), fallbackReason: failure || "extractor_found_nothing" };
-  if (textLength(result.html) < minChars) {
-    return { ...full(), fallbackReason: "extracted_text_below_minimum", title: result.title };
-  }
+  // Too little from the default extractor: the page's own <main>, if it marks
+  // one and it holds enough, beats a full page that opens with site navigation.
+  const tooLittle = (fallbackReason, title) => {
+    if (typeof mode !== "function" && doc.querySelector(MAIN)) {
+      const html = mainContentRoot(doc).innerHTML || "";
+      if (textLength(html) >= minChars) return { html, method: "main_content", fallbackReason, title };
+    }
+    return { ...full(), fallbackReason, ...(title === undefined ? {} : { title }) };
+  };
+
+  if (!result?.html) return tooLittle(failure || "extractor_found_nothing");
+  if (textLength(result.html) < minChars) return tooLittle("extracted_text_below_minimum", result.title);
   if (result.method === "readability") {
-    const html = mainContentHtml(doc);
+    const share = options.minExtractShare ?? DEFAULT_MIN_EXTRACT_SHARE;
     const kept = textLength(result.html);
-    const available = textLength(html);
-    if (kept < available * (options.minExtractShare ?? DEFAULT_MIN_EXTRACT_SHARE) && available - kept >= MIN_MISSED_CHARS) {
+    const isSmall = (html) => {
+      const available = textLength(html);
+      return kept < available * share && available - kept >= MIN_MISSED_CHARS;
+    };
+    const root = mainContentRoot(doc);
+    const html = root.innerHTML || "";
+    if (isSmall(html)) {
+      const article = articleWithoutComments(root, result.html);
+      if (article && !isSmall(article.innerHTML || "")) return { ...result, commentsOmitted: true };
       return { ...result, html, method: "main_content", fallbackReason: "extracted_small_share_of_page" };
     }
   }

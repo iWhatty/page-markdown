@@ -27,7 +27,7 @@ const STRIP_RULES = {
 // Advertising placements: explicit ad markup, plus custom elements named for ad
 // slots (e.g. MDN's <mdn-placement-sidebar>).
 const AD_SELECTOR = [
-  "ins.adsbygoogle", ".adsbygoogle", ".advertisement",
+  "ins.adsbygoogle", ".adsbygoogle", ".advertisement", ".ad-label",
   "[data-ad-slot]", "[data-ad-client]", "[data-ad-unit]",
   "[aria-label='Advertisement' i]", "[aria-label='Advertisements' i]", "[aria-label='Sponsored' i]",
   "iframe[src*='doubleclick.net']", "iframe[src*='googlesyndication.com']", "iframe[id^='google_ads_iframe']",

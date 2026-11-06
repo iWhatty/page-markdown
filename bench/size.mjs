@@ -12,9 +12,11 @@ const TARGET_MIN_BYTES = 60 * 1024;
 // that stop content loss (code line breaks, row spans, table performance,
 // fences in lists, link schemes). Raised to 70 KB when the bundle reached
 // 68.3 KB: fixes for silent content loss (main-content fallback, per-host
-// shadow limits, headings with clutter-like names). Raise it again only
-// deliberately, with a reason.
-const BUDGET_MIN_BYTES = 70 * 1024;
+// shadow limits, headings with clutter-like names). Raised to 74 KB when the
+// bundle reached 72.7 KB: fixes from the second live run (tab panels, note asides,
+// comment sections and visible notices). Raise it again only deliberately, with
+// a reason.
+const BUDGET_MIN_BYTES = 74 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],

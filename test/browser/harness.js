@@ -109,6 +109,19 @@
     stage.textContent = "";
   });
 
+  check("a host among slotted content has its own budget", () => {
+    stage.innerHTML = filler;
+    const outer = shadowHost("open", "<slot></slot><p>After the slot.</p>", "<p>Slotted.</p>");
+    const inner = document.createElement("inner-card");
+    inner.attachShadow({ mode: "open" }).innerHTML = "<p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>";
+    outer.appendChild(inner);
+    const { markdown, omissions } = pageToMarkdown(stage, { url, extract: "full", sanitize: { shadowNodeLimit: 3 } });
+    ok(markdown.includes("One.") && !markdown.includes("Four."), `inner host not cut at its limit:\n${markdown}`);
+    ok(markdown.includes("After the slot."), `the outer host was cut off:\n${markdown}`);
+    ok(omissions[0]?.count === 1, "the cut wasn't counted once");
+    stage.textContent = "";
+  });
+
   check("closed shadow roots are not captured", () => {
     stage.innerHTML = filler;
     shadowHost("closed", "<p>Closed shadow secret.</p>");

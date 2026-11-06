@@ -42,3 +42,5 @@ Bookcases for every room of the house, in a range of sizes and finishes, with sh
 -   [Product number 38](https://example.com/product/38) $57.00
 -   [Product number 39](https://example.com/product/39) $58.00
 -   [Product number 40](https://example.com/product/40) $59.00
+
+_Captured the main content instead of the article (`extracted_small_share_of_page`)._

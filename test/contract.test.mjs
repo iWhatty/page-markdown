@@ -645,7 +645,7 @@ test("articles keep Readability's choice: no fixture falls back to the main cont
   for (const dir of GOLDEN_DIRS) {
     for (const file of fs.readdirSync(path.join(FIXTURES, dir)).filter((f) => f.endsWith(".html"))) {
       if (file === "link-grid.html") continue;
-      assert.notEqual(run(`${dir}/${file}`).extraction.method, "main_content", file);
+      assert.notEqual(run(`${dir}/${file}`).extraction.fallbackReason, "extracted_small_share_of_page", file);
     }
   }
 });
@@ -654,7 +654,116 @@ test("headings survive clutter-like names, and permalink text goes", () => {
   const { markdown } = run("regression/heading-names.html");
   assert.match(markdown, /^## Usage with Prettier$/m);
   assert.match(markdown, /^## Specifying title$/m);
-  assert.doesNotMatch(markdown, /Direct link|Section titled/);
+  assert.match(markdown, /^## Types$/m);
+  assert.match(markdown, /^### Usage$/m);
+  assert.match(markdown, /^## Icon$/m);
+  assert.match(markdown, /Theming/);
+  assert.match(markdown, /\[the types above\]/);
+  assert.doesNotMatch(markdown, /Direct link|Section titled|Link to|permalink\)/);
+});
+
+function pageWith(body, title = "The story") {
+  return parseHTML(`<!doctype html><html><head><title>${title}</title></head><body>${body}</body></html>`).document;
+}
+const prose = (count, text = "Article paragraph, with enough words in it to read like a proper sentence of real prose, about the topic at hand, for a reader who cares about it.") => `<p>${text}</p>`.repeat(count);
+
+test("an article above a long comment section keeps Readability's choice, and says comments were left out", () => {
+  const comments = '<div class="comment"><p>I think this comment makes a point that goes on for a little while, with some words, and then it stops.</p></div>'.repeat(120);
+  const result = pageToMarkdown(pageWith(`<main><article><h1>The story</h1>${prose(30)}</article><section id="comments">${comments}</section></main>`), { url: URL_BASE });
+  assert.equal(result.extraction.method, "readability");
+  assert.doesNotMatch(result.markdown, /comment makes a point/);
+  assert.deepEqual(result.omissions.map((o) => o.kind), ["comments"]);
+  assert.match(result.markdown, /_Comment section not included\._$/);
+});
+
+test("a thread, where what Readability kept is itself a comment, still falls back", () => {
+  const comments = Array.from({ length: 12 }, (_, i) => `<li class="comment"><p>Comment ${i} of the thread, which has a good deal to say on the subject, at some length, and then says some more about it, before it finally stops and lets the next one speak.</p></li>`).join("");
+  const result = run("regression/link-grid.html");
+  assert.equal(result.extraction.method, "main_content");
+  const thread = pageToMarkdown(pageWith(`<main><h1>The story</h1><p><a href="/x">Story link</a></p><ol class="comments">${comments}</ol></main>`), { url: URL_BASE });
+  assert.match(thread.markdown, /Comment 11 of the thread/);
+  assert.equal(thread.omissions.length, 0);
+});
+
+test("hidden text doesn't make the main content look bigger, and doesn't reach the output", () => {
+  const article = `<article><h1>The story</h1>${prose(12)}</article>`;
+  for (const hidden of ["hidden", 'style="display: none"']) {
+    const result = pageToMarkdown(pageWith(`<main>${article}<div ${hidden}>${prose(60, "Hidden text that nobody reading the page can see, however long it may happen to go on for.")}</div></main>`), { url: URL_BASE });
+    assert.equal(result.extraction.method, "readability", hidden);
+    assert.doesNotMatch(result.markdown, /Hidden text/, hidden);
+  }
+});
+
+test("the main-content fallback keeps code behind a toggle", () => {
+  const document = load("regression/link-grid.html");
+  document.querySelector("main").insertAdjacentHTML("beforeend", '<div hidden><pre><code>const shown = "code";</code></pre></div>');
+  const result = pageToMarkdown(document, { url: URL_BASE });
+  assert.equal(result.extraction.method, "main_content");
+  assert.match(result.markdown, /const shown = "code";/);
+});
+
+test("too little from Readability uses the page's <main> before the full page", () => {
+  const result = run("regression/link-grid.html", { minExtractChars: 600 });
+  assert.equal(result.extraction.method, "main_content");
+  assert.equal(result.extraction.fallbackReason, "extracted_text_below_minimum");
+  assert.doesNotMatch(result.markdown, /Site navigation/);
+  assert.match(result.markdown, /_Captured the main content instead of the article \(`extracted_text_below_minimum`\)\._$/);
+});
+
+test("a fallback and a removed JSON line say so in the Markdown too", () => {
+  const json = JSON.stringify({ state: "x".repeat(2100) }).replace(/"/g, "&quot;");
+  const result = pageToMarkdown(pageWith(`<main><article><h1>The story</h1>${prose(12)}<p>${json}</p></article></main>`), { url: URL_BASE });
+  assert.deepEqual(result.omissions.map((o) => o.kind), ["json_line"]);
+  assert.match(result.markdown, /_Large single-line JSON documents removed\._$/);
+});
+
+test("the shadow notice stays last, after other notices", () => {
+  const { document } = parseHTML(`<!doctype html><html><body><main><p>${"Light text. ".repeat(20)}</p></main></body></html>`);
+  shadowHost(document, 5);
+  const { markdown } = pageToMarkdown(document, { url: URL_BASE, extract: "full", sanitize: { shadowNodeLimit: 2 } });
+  assert.match(markdown, /_Open shadow content omitted: capture limit \(1 host\(s\)\)\._$/);
+});
+
+test("inactive tab panels are kept under their tab's name, and the tab strip goes", () => {
+  const { markdown, omissions } = run("regression/tab-panels.html");
+  for (const text of ["Run npm install widget", "Run pnpm add widget", "This is an apple.", "This is an orange."]) assert.ok(markdown.includes(text), text);
+  assert.match(markdown, /\*\*pnpm\*\*\n\nRun pnpm add/);
+  assert.match(markdown, /\*\*Orange\*\*\n\nThis is an orange/);
+  assert.doesNotMatch(markdown, /#panel-|^- pnpm/m);
+  assert.equal(omissions.length, 0);
+});
+
+test("a long inactive panel is left out and named, also when only the group marks what's selected", () => {
+  const long = prose(60);
+  const result = pageToMarkdown(pageWith(`<main><article><h1>The story</h1>${prose(12)}<sp-tabs selected="overview"><sp-tab value="overview">Overview</sp-tab><sp-tab value="api">API</sp-tab><sp-tab value="changelog">Change_log</sp-tab><sp-tab-panel value="overview"><p>The overview tab.</p></sp-tab-panel><sp-tab-panel value="api"><p>The API tab.</p></sp-tab-panel><sp-tab-panel value="changelog">${long}</sp-tab-panel></sp-tabs></article></main>`), { url: URL_BASE });
+  assert.equal(result.extraction.method, "readability");
+  assert.match(result.markdown, /The API tab\./);
+  assert.equal(result.markdown.match(/Article paragraph/g).length, 12);
+  assert.deepEqual(result.stats.standardization.omittedTabs, ["Change_log"]);
+  assert.equal(result.omissions[0].kind, "inactive_tabs");
+  assert.match(result.markdown, /_Other tabs not included: Change\\_log\._$/);
+});
+
+test("note asides survive; other asides don't", () => {
+  const { markdown } = run("regression/tab-panels.html");
+  assert.match(markdown, /^> Restart the dev server/m);
+  assert.doesNotMatch(markdown, /Other stories/);
+});
+
+test("a link around block content stays on one line; ad labels go", () => {
+  const { markdown } = pageToMarkdown(pageWith(`<article><h1>The story</h1><a href="/tag"><div>cyber-crime</div></a><span class="ad-label">REG AD</span>${prose(6)}</article>`), { url: URL_BASE });
+  assert.match(markdown, /^\[cyber-crime\]\(https:\/\/example\.com\/tag\)$/m);
+  assert.doesNotMatch(markdown, /REG AD/);
+});
+
+test("a site-wide og:title and a badge in the H1 don't take over the headline", () => {
+  const doc = parseHTML(`<!doctype html><html><head><title>Overview | Tabs | Example Design</title><meta property="og:title" content="Example Design"><meta property="og:site_name" content="Example Design"></head><body><main><h1>Tabs <span>Since v1.0</span></h1>${prose(6)}</main></body></html>`).document;
+  assert.equal(pageToMarkdown(doc, { url: URL_BASE }).metadata.headline, "Tabs");
+});
+
+test("stats.pageTextChars counts the page's text", () => {
+  const { stats } = pageToMarkdown(pageWith("<main><article><h1>Hello</h1> <p>World</p></article></main>"), { url: URL_BASE });
+  assert.equal(stats.pageTextChars, "Hello World".length);
 });
 
 test("pageFacts skips teasers, form controls and cookie settings", () => {

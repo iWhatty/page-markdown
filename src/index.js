@@ -7,7 +7,7 @@ import { htmlToMarkdown } from "./convert.js";
 import { cleanMarkdown, applyMode, mapOutsideFences } from "./clean.js";
 import { collectMetadata } from "./metadata.js";
 import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
-import { collectPageFacts, pageFactsMarkdown } from "./facts.js";
+import { collectPageFacts, pageFactsMarkdown, escapeMarkdown } from "./facts.js";
 import { removeHiddenText, hiddenTextOmissions } from "./hidden.js";
 
 export const VERSION = "0.1.5";
@@ -62,7 +62,8 @@ function hasTopHeading(markdown) {
  * @property {"readable"|"full"|import("./extract.js").Extractor} [extract="readable"]
  *   "readable": Readability with full-page fallback; "full": the whole body;
  *   or a custom extractor receiving a copy of the standardized document.
- * @property {number} [minExtractChars=100] below this, fall back to the full page
+ * @property {number} [minExtractChars=100] below this, fall back to the page's <main>
+ *   if it marks one and it holds enough, else to the full page
  * @property {number} [minExtractShare=0.4] when Readability keeps less than this
  *   share of the page's main content, use the main content instead; 0 turns it off
  * @property {boolean} [includeFullPage=false] also return the full-page Markdown
@@ -101,9 +102,9 @@ export function pageToMarkdown(input, options = {}) {
     minExtractShare: options.minExtractShare,
     readability: options.readability,
   });
+  const fallbackTarget = extraction.method === "main_content" ? "the main content" : "the full page";
   if (extraction.fallbackReason) {
-    const target = extraction.method === "main_content" ? "the main content" : "the full page";
-    warnings.push(`extraction fell back to ${target}: ${extraction.fallbackReason}`);
+    warnings.push(`extraction fell back to ${fallbackTarget}: ${extraction.fallbackReason}`);
   }
   if (omissions.shadowHosts) warnings.push(`shadow content cut off at the capture limit in ${omissions.shadowHosts} host(s); the page's main content may be missing`);
 
@@ -134,6 +135,14 @@ export function pageToMarkdown(input, options = {}) {
   if (main.removedJsonLines) {
     omissionList.push({ kind: "json_line", count: main.removedJsonLines, note: "Large single-line JSON documents removed" });
   }
+  if (standardization.omittedTabs.length) {
+    const count = standardization.omittedTabs.length;
+    const labels = standardization.omittedTabs.filter(Boolean).map(escapeMarkdown).join(", ");
+    omissionList.push({ kind: "inactive_tabs", count, note: labels ? `Other tabs not included: ${labels}` : `${count} other tab(s) not included` });
+  }
+  if (extraction.commentsOmitted) {
+    omissionList.push({ kind: "comments", count: 1, note: "Comment section not included" });
+  }
 
   /** @type {import("./types.js").PageMarkdownResult} */
   const result = {
@@ -158,6 +167,7 @@ export function pageToMarkdown(input, options = {}) {
       extractedHtmlChars: extraction.html.length,
       convertedChars: main.convertedChars,
       markdownChars: main.markdown.length,
+      pageTextChars: (inert.body?.textContent || "").replace(/\s+/g, " ").trim().length,
       standardization,
     },
   };
@@ -177,9 +187,14 @@ export function pageToMarkdown(input, options = {}) {
       if (typeof value === "string") result.metadata[key] = removeHiddenText(value).text;
     }
   }
-  if (omissions.shadowHosts) {
-    result.markdown += `\n\n_Open shadow content omitted: capture limit (${omissions.shadowHosts} host(s))._`;
-  }
+  // A caller may pass on only the Markdown, so what changes the content says so
+  // in it too. Tab labels are page text: hidden-text removal applies to them.
+  const notices = [
+    ...(extraction.fallbackReason ? [`Captured ${fallbackTarget} instead of the article (\`${extraction.fallbackReason}\`)`] : []),
+    ...omissionList.filter(({ kind }) => ["json_line", "inactive_tabs", "comments"].includes(kind)).map((omission) => omission.note),
+    ...(omissions.shadowHosts ? [`Open shadow content omitted: capture limit (${omissions.shadowHosts} host(s))`] : []),
+  ].map((notice) => (options.removeHiddenText ? removeHiddenText(notice).text : notice));
+  for (const notice of notices) result.markdown += `\n\n_${notice}._`;
   result.stats.markdownChars = result.markdown.length;
   return result;
 }

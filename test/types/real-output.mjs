@@ -40,6 +40,8 @@ function builtPages() {
     [parse(ARTICLE), { extract: () => ({ html: `<p>${LOREM}</p>`, method: "custom", title: "Custom title", byline: "Ann Author" }) }],
     [parse(ARTICLE), { extract: () => { throw new Error("nope"); } }],
     [parse(ARTICLE), { minExtractChars: 1e6 }],
+    [parse(`<html><body><main><article><h1>H</h1><p>${LOREM}</p></article><div class="comment">${"A long reply from a reader, going on at some length. ".repeat(60)}</div></main></body></html>`), {}],
+    [parse(`<html><body><main><h1>H</h1><p>${LOREM}</p><div role="tablist"><a role="tab" id="t">Long</a></div><div role="tabpanel" aria-labelledby="t" hidden>${LOREM.repeat(6)}</div></main></body></html>`), {}],
     [parse(`<html><head><title>T</title><meta name="description" content="${LEAD}"></head><body><section><p>${LEAD}</p></section></body></html>`),
       { extract: () => ({ html: `<p>${LOREM}</p>`, method: "custom" }) }],
   ];
