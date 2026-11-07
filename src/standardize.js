@@ -190,7 +190,7 @@ function standardizeHeadings(doc, stats) {
 }
 
 function isInactivePanel(panel) {
-  if (isHiddenElement(panel) || panel.getAttribute("aria-hidden") === "true") return true;
+  if (isHiddenElement(panel) || panel.getAttribute("aria-hidden") === "true" || panel.classList.contains("hidden")) return true;
   // Custom elements that mark only the group: <sp-tabs selected="overview">.
   const value = panel.getAttribute("value");
   const selected = value && panel.parentElement?.closest("[selected]")?.getAttribute("selected");
@@ -221,6 +221,12 @@ function tabOf(panel, tabs) {
  * left out, and named in stats.omittedTabs.
  */
 function standardizeTabPanels(doc, stats) {
+  // Docker's docs write aria-role, and call a panel a tab: only the strip's is right.
+  for (const list of Array.from(doc.querySelectorAll("[aria-role='tablist']"))) {
+    list.setAttribute("role", "tablist");
+    for (const tab of Array.from(list.children)) tab.setAttribute("role", "tab");
+    for (const panel of Array.from(list.nextElementSibling?.children || [])) panel.setAttribute("role", "tabpanel");
+  }
   const panels = Array.from(doc.querySelectorAll(TAB_PANELS));
   if (!panels.length) return;
   const tabs = Array.from(doc.querySelectorAll(TABS));
@@ -234,6 +240,7 @@ function standardizeTabPanels(doc, stats) {
         continue;
       }
       for (const attr of ["hidden", "aria-hidden", "style"]) panel.removeAttribute(attr);
+      panel.classList.remove("hidden");
     }
     if (label && panels.length > 1 && !text.toLowerCase().startsWith(label.toLowerCase())) {
       const heading = doc.createElement("p");

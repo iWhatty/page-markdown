@@ -666,6 +666,16 @@ test("a page's other sections aren't lost to Readability's choice of one", () =>
   assert.match(markdown, /Out of stock/);
 });
 
+test("tab panels hidden by a class name keep their text", () => {
+  const { markdown, omissions } = run("regression/class-hidden-tabs.html");
+  assert.ok(markdown.includes("**Specific version**"));
+  assert.match(markdown, /apt list --all-versions engine/);
+  assert.ok(markdown.includes("**Fedora**"));
+  assert.match(markdown, /separate repository/);
+  assert.doesNotMatch(markdown, /Latest\s+Specific version/);
+  assert.deepEqual(omissions, []);
+});
+
 test("story cards around an article aren't sections it lost", () => {
   const { markdown, extraction } = run("regression/story-cards.html");
   assert.equal(extraction.method, "readability");

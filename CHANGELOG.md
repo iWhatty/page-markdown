@@ -34,6 +34,11 @@ extraction.
   straight after a button or summary is kept, so an FAQ isn't lost when a page
   hides its answers with inline styles. Inferred from Allbirds' markup, whose
   framework should hide them that way once it runs; not yet seen live.
+- **Tab panels hidden by a class name keep their text.** Readability removes
+  `class="hidden"`, so Docker's "Specific version" install tab was lost live with
+  no closing line. Inactive panels are now recognized by that class too, and Docker's
+  `aria-role` tab strips are read as tabs. Reproduced from Docker's markup with the
+  class its script adds; not yet re-run live.
 - **Shadow limits no longer erase a whole host.** A host over the limit keeps what
   fits, limits apply per host in the page's own tree so a large site header can't
   use up the article's budget, and `warnings` now reports the cut.

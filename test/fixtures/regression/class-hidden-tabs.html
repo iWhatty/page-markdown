@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><title>Installing the engine</title></head>
+<body>
+  <main><article>
+    <h1>Installing the engine</h1>
+    <p>The engine installs from the package repository, and you can either take whatever the newest release is or pin the exact release that the rest of your machines are already running.</p>
+    <p>Add the repository first, then choose one of the two ways below. Either way the service starts by itself once the packages are in place, and it needs nothing else to get going.</p>
+    <div class="tabs" x-data="{ selected: 'Latest' }" aria-role="tabpanel">
+      <div aria-role="tablist" class="tablist">
+        <button class="tab-item">Latest</button>
+        <button class="tab-item">Specific version</button>
+      </div>
+      <div>
+        <div aria-role="tab"><p>To install the latest version, run:</p><pre><code>apt install engine</code></pre></div>
+        <div aria-role="tab" class="hidden"><p>To install a specific version, list what the repository has:</p><pre><code>apt list --all-versions engine</code></pre></div>
+      </div>
+    </div>
+    <p>Other sites give their panels proper roles, and hide the inactive one with a class name that only their stylesheet can explain, so nothing in the markup says it is hidden.</p>
+    <div>
+      <ul role="tablist"><li role="tab">Debian</li><li role="tab">Fedora</li></ul>
+      <div>
+        <div role="tabpanel"><p>On Debian, the packages come from the same repository as everything else.</p></div>
+        <div role="tabpanel" class="panel hidden"><p>On Fedora, the packages come from a separate repository that you add by hand.</p></div>
+      </div>
+    </div>
+    <p>That is all it takes to install the engine, and the next page goes on to show how to run your first container on the machine that you have just set up with it.</p>
+  </article></main>
+</body>
+</html>
