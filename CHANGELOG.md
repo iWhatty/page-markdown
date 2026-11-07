@@ -13,6 +13,26 @@ extraction.
   `extracted_small_share_of_page`, and `warnings` says so. Word recall on a Lobsters
   thread goes from 36% to 100%, and on an IKEA category page from 50% to 95%. These
   pages keep more clutter: IKEA's precision falls from 92% to 30%.
+- **Layout class names no longer cost a block its place.** Readability's clutter
+  list matches "scroll" and "hidden" in Tailwind's `scroll-mt-2`, `overflow-hidden`
+  and `md:hidden`, and it removed what carried them: every code block in Docker's
+  install guide and the plan cards on Tailscale's pricing page. Reproduced and fixed
+  from the served pages, not yet re-run live.
+- **Icon-only table cells say something.** A cell holding only an SVG came out
+  empty, so a comparison table couldn't say which plan has what. It now shows the
+  icon's accessible name, else `✓`, `–` or `✗` for those simple shapes, else
+  `[icon]`. On Tailscale, 114 ticks and 25 dashes where there were empty cells.
+- **More cases fall back to the main content,** and say so with their own
+  `fallbackReason`. `extracted_site_menu`: Readability chose a container above
+  `<main>` and kept the site's menu (BBC News). `extracted_few_sections_of_page`:
+  it kept under 1.5 times `minExtractShare` of the main content and lost most of the
+  page's h2 sections, as on Adafruit's product page, which lost its price, stock and
+  technical details. The product page keeps more clutter this way, including its
+  "May We Also Suggest" list.
+- **The fallback keeps collapsed answers.** Hidden text of 40 characters or more
+  straight after a button or summary is kept, so an FAQ isn't lost when a page
+  hides its answers with inline styles. Inferred from Allbirds' markup, whose
+  framework should hide them that way once it runs; not yet seen live.
 - **Shadow limits no longer erase a whole host.** A host over the limit keeps what
   fits, limits apply per host in the page's own tree so a large site header can't
   use up the article's budget, and `warnings` now reports the cut.

@@ -635,6 +635,46 @@ test("a thread or product grid Readability mostly drops falls back to the main c
   assert.doesNotMatch(result.markdown, /Skip to products|Site navigation|Newsletter form/);
 });
 
+test("the fallback keeps answers behind a toggle, but not other hidden text", () => {
+  const { markdown } = run("regression/link-grid.html");
+  assert.match(markdown, /Absolutely\. Take the covers off/);
+  assert.match(markdown, /We deliver to most addresses/);
+  assert.doesNotMatch(markdown, /Added|hidden template/);
+});
+
+test("layout class names don't cost a block its place", () => {
+  const { markdown, extraction } = run("regression/layout-class-names.html");
+  assert.equal(extraction.method, "readability");
+  assert.match(markdown, /sudo apt remove old-widget/);
+  assert.match(markdown, /sudo add-source widget/);
+});
+
+test("Readability above <main> with the site's menu falls back to the main content", () => {
+  const { markdown, extraction } = run("regression/site-menu-above-main.html");
+  assert.equal(extraction.method, "main_content");
+  assert.equal(extraction.fallbackReason, "extracted_site_menu");
+  assert.doesNotMatch(markdown, /Skip to content|Business/);
+  assert.match(markdown, /Story number four/);
+});
+
+test("a page's other sections aren't lost to Readability's choice of one", () => {
+  const { markdown, extraction } = run("regression/product-sections.html");
+  assert.equal(extraction.method, "main_content");
+  assert.equal(extraction.fallbackReason, "extracted_few_sections_of_page");
+  assert.match(markdown, /Weight: 46 grams/);
+  assert.match(markdown, /\$80\.00/);
+  assert.match(markdown, /Out of stock/);
+});
+
+test("icon-only table cells say what the icon says", () => {
+  const { markdown } = run("regression/icon-cells.html");
+  assert.match(markdown, /^\| Sync \| \u2713 \| \u2713 \|$/m);
+  assert.match(markdown, /^\| Audit log \| \u2013 \| \u2717 \|$/m);
+  assert.match(markdown, /^\| Support \| Not included \| Included \|$/m);
+  assert.match(markdown, /^\| Export \| \[icon\] \| \[icon\] \|$/m);
+  assert.match(markdown, /^\| Seats \| 1 \| {2}\|$/m);
+});
+
 test("minExtractShare: 0 keeps what Readability chose", () => {
   const result = run("regression/link-grid.html", { minExtractShare: 0 });
   assert.equal(result.extraction.method, "readability");

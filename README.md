@@ -88,7 +88,7 @@ The stages are also exported for advanced use: `sanitizeToInertDocument`,
 | `metadata.headline` | `string?` | The heading chosen for the capture |
 | `metadata.extractedTitle`, `byline` | `string?` | What the extractor reported |
 | `extraction.method` | `string` | `"readability"`, `"main_content"`, `"full_page"`, or the name a custom extractor gave |
-| `extraction.fallbackReason` | `string?` | Why extraction fell back: `extracted_small_share_of_page` (to the main content), or `extractor_found_nothing`, `extracted_text_below_minimum` or `extractor_error: …` (to the full page) |
+| `extraction.fallbackReason` | `string?` | Why extraction fell back: `extracted_small_share_of_page`, `extracted_site_menu` or `extracted_few_sections_of_page` (to the main content), or `extractor_found_nothing`, `extracted_text_below_minimum` or `extractor_error: …` (to the full page) |
 | `extraction.leadRecovered` | `true?` | A dropped lead paragraph was restored |
 | `extraction.pageFacts` | `number?` | How many facts `pageFacts` appended |
 | `omissions[]` | `{ kind, count, note, chars? }` | What was left out or removed. `kind` is `shadow_content`, `json_line`, `inactive_tabs`, `comments` or a `hidden_*` kind; only `hidden_*` entries have `chars`. All but `hidden_*` also add a closing line to `markdown`, as a fallback does, so a caller that passes on only the Markdown still says so |
@@ -193,9 +193,13 @@ deliberately has no cloud CI.
   Edge, and on live pages in a real extension (HELIOS 0.1.5, in Brave), but not
   in Firefox or Safari.
 - **Extraction can still be wrong without saying so.** The main-content fallback
-  and its warning catch a small share of the page, not every wrong choice. If
-  Readability picks the wrong part of a page and that part is large, nothing
-  flags it.
+  and its warning catch a small share of the page, a kept site menu and lost
+  sections, not every wrong choice. If Readability picks the wrong part of a page
+  and that part is large, nothing flags it. No closing line doesn't mean nothing
+  was lost. A short post among long replies can be dropped: a Mastodon status lost
+  the post itself, and its cause isn't known yet.
+- **Answers hidden on an ordinary article can be lost.** Collapsed FAQ answers are
+  kept by the main-content fallback only; Readability removes hidden text.
 - **Some legacy markup loses paragraph breaks.** Readability can drop runs of
   `<br>` between inline elements in old HTML. The text survives; a paragraph
   break may not.

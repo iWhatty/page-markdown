@@ -43,4 +43,16 @@ Bookcases for every room of the house, in a range of sizes and finishes, with sh
 -   [Product number 39](https://example.com/product/39) $58.00
 -   [Product number 40](https://example.com/product/40) $59.00
 
+## Questions
+
+Can I wash the covers?
+
+Absolutely. Take the covers off and wash them on a cold cycle, then let them dry flat for a day.
+
+Do you deliver?
+
+We deliver to most addresses within a week, and you can follow your order online the whole way.
+
+Add to cart
+
 _Captured the main content instead of the article (`extracted_small_share_of_page`)._

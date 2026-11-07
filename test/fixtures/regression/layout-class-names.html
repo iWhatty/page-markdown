@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head><title>Install the widget</title></head>
+<body>
+  <main class="relative flex w-full">
+    <article class="prose max-w-4xl">
+      <h1>Install the widget</h1>
+      <p>This guide walks through installing the widget on a fresh machine, from removing old packages to checking that the service is running properly afterwards.</p>
+      <p>Run the following command to remove any packages that conflict with the widget before you go on to install it:</p>
+      <div class="group mt-2 mb-4 flex w-full scroll-mt-2 flex-col items-start gap-4 rounded p-2">
+        <div class="relative w-full"><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console">sudo apt remove old-widget</code></pre></div></div>
+      </div>
+      <p>Then add the package source, so that the system knows where to fetch the widget and its updates from when you next install or upgrade it:</p>
+      <div class="group mt-2 mb-4 flex w-full lg:scroll-mt-12 overflow-hidden flex-col items-start gap-4 rounded p-2">
+        <div class="relative w-full"><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-console">sudo add-source widget</code></pre></div></div>
+      </div>
+      <p>Finally check that the service came up, which should print a short status message and return you to the prompt without any errors at all.</p>
+    </article>
+  </main>
+</body>
+</html>

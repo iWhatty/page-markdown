@@ -1,7 +1,8 @@
 // Stage 3: pick the readable content. Default: Mozilla Readability on a copy
 // of the standardized clone, falling back to the whole body when it finds
 // nothing or too little, and to the page's main content when it keeps only a
-// small share of that (forum threads, product grids).
+// small share of that (forum threads, product grids), brings the site's menu
+// along, or keeps too few of its sections (product pages).
 // The class only: skips isProbablyReaderable, which the pipeline does not use.
 import Readability from "@mozilla/readability/Readability.js";
 import { htmlText } from "./refine.js";
@@ -14,6 +15,13 @@ export const PAGE_CHROME = "nav, footer, form, [role='navigation'], [role='banne
 const MAIN = "main, [role='main']";
 const COMMENTS = "#comments, #disqus_thread, .comments, .commentlist, .comment-list, .comment, [id^='comment-']";
 const HIDDEN_STYLE = /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i;
+const TOGGLE = "button, summary, [aria-expanded]";
+// Shorter hidden text beside a button is a status message ("Added"), not an answer.
+const MIN_ANSWER_CHARS = 40;
+const MENU_SAMPLE_CHARS = 30;
+// Fewer h2s than this, and a page has no sections to lose.
+const MIN_SECTIONS = 3;
+const SECTION_SHARE_FACTOR = 1.5;
 
 // As far as a clone can tell, with no stylesheets. Not aria-hidden: shops put
 // the price people see in it, beside a longer one for screen readers.
@@ -29,15 +37,20 @@ function bodyHtml(doc) {
   return (doc.body || doc.documentElement)?.innerHTML || "";
 }
 
+// An accordion's answer, hidden until its button is pressed: FAQs on shop pages.
+function isCollapsedAnswer(el) {
+  return Boolean(el.previousElementSibling?.matches(TOGGLE)) && (el.textContent || "").trim().length >= MIN_ANSWER_CHARS;
+}
+
 // <main> or else the body, without navigation, other page chrome or anything
-// hidden, except code behind a "Show code" toggle. A header inside <main> usually
-// belongs to the content; one in the body doesn't.
+// hidden, except code behind a "Show code" toggle and collapsed answers. A header
+// inside <main> usually belongs to the content; one in the body doesn't.
 function mainContentRoot(doc) {
   const main = doc.querySelector(MAIN);
   const root = (main || doc.body || doc.documentElement).cloneNode(true);
   for (const el of Array.from(root.querySelectorAll(`${PAGE_CHROME}, aside, template, [role='complementary']${main ? "" : ", header"}`))) el.remove();
   for (const el of Array.from(root.querySelectorAll("[hidden], [style]"))) {
-    if (isHiddenElement(el) && !el.querySelector("pre")) el.remove();
+    if (isHiddenElement(el) && !el.querySelector("pre") && !isCollapsedAnswer(el)) el.remove();
   }
   for (const link of Array.from(root.querySelectorAll("a[href^='#']"))) {
     if (/^\s*skip\b/i.test(link.textContent || "")) link.remove();
@@ -59,13 +72,42 @@ function articleWithoutComments(root, articleHtml) {
   return root;
 }
 
-// Readability scores class and id names, and removes headings whose names look
-// like clutter: Docusaurus's "anchorTargetHideOnScrollNavbar" matches "scroll".
-function withoutHeadingNames(doc) {
+// Readability chose a container above <main>, and the site's menu came with it.
+function keptSiteMenu(doc, kept) {
+  const main = doc.querySelector(MAIN);
+  if (!main) return false;
+  const text = withoutSpaces(main.textContent || "");
+  if (!kept.includes(text.slice(text.length >> 1, (text.length >> 1) + MENU_SAMPLE_CHARS))) return false;
+  return Array.from(doc.querySelectorAll("nav, [role='navigation']")).some((nav) => {
+    const menu = withoutSpaces(nav.textContent || "").slice(0, MENU_SAMPLE_CHARS);
+    return !main.contains(nav) && menu.length === MENU_SAMPLE_CHARS && kept.includes(menu);
+  });
+}
+
+function lostMostSections(root, kept) {
+  const headings = Array.from(root.querySelectorAll("h2")).map((h2) => withoutSpaces(h2.textContent || "")).filter(Boolean);
+  return headings.length >= MIN_SECTIONS && headings.filter((heading) => !kept.includes(heading)).length * 2 > headings.length;
+}
+
+// Layout utilities, which say nothing about content: Tailwind's scroll-mt-2 and
+// overflow-hidden, md:hidden.
+const LAYOUT_CLASS = /^(?:\S+:)?(?:-?scroll-[mp][a-z]?-\S+|overflow(?:-[xy])?-(?:hidden|scroll)|(?<=:)hidden)$/;
+
+// Readability scores class and id names, and removes what looks like clutter:
+// Docusaurus's heading "anchorTargetHideOnScrollNavbar" matches "scroll", and so
+// does the scroll-mt-2 on every code block of Docker's docs.
+function withoutMisleadingNames(doc) {
   for (const heading of Array.from(doc.querySelectorAll("h1, h2, h3, h4, h5, h6"))) {
     heading.removeAttribute("class");
     heading.removeAttribute("id");
   }
+  for (const el of Array.from(doc.querySelectorAll("[class]"))) {
+    const names = String(el.getAttribute("class")).split(/\s+/);
+    const kept = names.filter((name) => !LAYOUT_CLASS.test(name));
+    if (kept.length < names.length) el.setAttribute("class", kept.join(" "));
+  }
+  // Readability removes what's aria-hidden, and icons in table cells usually are.
+  for (const icon of Array.from(doc.querySelectorAll("td svg[aria-hidden], th svg[aria-hidden]"))) icon.removeAttribute("aria-hidden");
   return doc;
 }
 
@@ -107,7 +149,7 @@ export function extractContent(doc, options = {}) {
     if (typeof mode === "function") {
       result = mode(copyDocument(doc));
     } else {
-      const article = new Readability(withoutHeadingNames(copyDocument(doc)), { keepClasses: true, ...options.readability }).parse();
+      const article = new Readability(withoutMisleadingNames(copyDocument(doc)), { keepClasses: true, ...options.readability }).parse();
       result = article && {
         html: article.content || "",
         method: "readability",
@@ -142,12 +184,21 @@ export function extractContent(doc, options = {}) {
       const available = textLength(html);
       return kept < available * share && available - kept >= MIN_MISSED_CHARS;
     };
+    const keptText = withoutSpaces(htmlText(result.html));
+    // Section loss counts only where it takes more of the page than a related-links block.
+    const misses = (el) => {
+      const available = el.innerHTML || "";
+      return isSmall(available) || (kept < textLength(available) * share * SECTION_SHARE_FACTOR && lostMostSections(el, keptText));
+    };
     const root = mainContentRoot(doc);
     const html = root.innerHTML || "";
-    if (isSmall(html)) {
-      const article = articleWithoutComments(root, result.html);
-      if (article && !isSmall(article.innerHTML || "")) return { ...result, commentsOmitted: true };
-      return { ...result, html, method: "main_content", fallbackReason: "extracted_small_share_of_page" };
+    const reason = keptSiteMenu(doc, keptText) && textLength(html) >= minChars ? "extracted_site_menu"
+      : isSmall(html) ? "extracted_small_share_of_page"
+      : misses(root) ? "extracted_few_sections_of_page" : "";
+    if (reason) {
+      const article = reason === "extracted_site_menu" ? null : articleWithoutComments(root, result.html);
+      if (article && !misses(article)) return { ...result, commentsOmitted: true };
+      return { ...result, html, method: "main_content", fallbackReason: reason };
     }
   }
   return result;

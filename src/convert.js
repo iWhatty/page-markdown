@@ -196,10 +196,64 @@ function cellText(content) {
   return text.replace(/\|/g, "\\|");
 }
 
+// An icon's straight strokes, as lists of points; null if any stroke curves.
+function iconStrokes(svg) {
+  const strokes = [];
+  for (const shape of Array.from(svg.querySelectorAll?.("path, polyline, line") || [])) {
+    const at = (name) => shape.getAttribute(name);
+    const d = at("d") ?? `M${at("points") ?? `${at("x1")} ${at("y1")} ${at("x2")} ${at("y2")}`}`;
+    const tokens = d.match(/[a-zA-Z]|-?\d*\.?\d+/g) || [];
+    let x = 0;
+    let y = 0;
+    let command = "";
+    let points = [];
+    for (let i = 0; i < tokens.length;) {
+      if (/[a-zA-Z]/.test(tokens[i])) command = tokens[i++];
+      const relative = command > "Z";
+      const type = command.toUpperCase();
+      if (!"MLHV".includes(type)) return null;
+      if (type !== "V") x = Number(tokens[i++]) + (relative ? x : 0);
+      if (type !== "H") y = Number(tokens[i++]) + (relative ? y : 0);
+      if (type === "M") {
+        points = [];
+        strokes.push(points);
+        command = relative ? "l" : "L";
+      }
+      points.push([x, y]);
+    }
+  }
+  return strokes;
+}
+
+// What an icon's shape says, for the tick, dash and cross of comparison tables.
+function iconShape(strokes) {
+  const [first, second] = strokes || [];
+  if (strokes?.length === 1 && first.length === 2 && first[0][1] === first[1][1]) return "\u2013";
+  if (strokes?.length === 1 && first.length === 3) {
+    const [a, b, c] = first;
+    const arm = (p) => Math.hypot(p[0] - b[0], p[1] - b[1]);
+    const ratio = Math.max(arm(a), arm(c)) / Math.min(arm(a), arm(c));
+    if (b[1] > a[1] && b[1] > c[1] && (a[0] - b[0]) * (c[0] - b[0]) < 0 && ratio > 1.3) return "\u2713";
+  }
+  const slope = ([p, q]) => (q[0] - p[0]) * (q[1] - p[1]);
+  if (strokes?.length === 2 && first.length === 2 && second.length === 2 && slope(first) * slope(second) < 0) return "\u2717";
+  return "";
+}
+
+// A cell holding only an icon would be empty, and the table couldn't say which
+// plan has what: its accessible name, else its shape, else that an icon is there.
+function cellIcon(cell) {
+  const svg = cell.querySelector?.("svg");
+  if (!svg) return "";
+  return svg.getAttribute("aria-label")?.trim() || svg.querySelector("title")?.textContent?.trim()
+    || iconShape(iconStrokes(svg)) || "[icon]";
+}
+
 function tableRules(turndown) {
   turndown.addRule("pmTableCell", {
     filter: ["th", "td"],
-    replacement(content, node) {
+    replacement(rawContent, node) {
+      const content = rawContent.trim() ? rawContent : cellIcon(node);
       if (isBlockCell(node)) {
         // Header cells become the labels on the other cells.
         const label = cellLabel(node);

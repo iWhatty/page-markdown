@@ -14,9 +14,11 @@ const TARGET_MIN_BYTES = 60 * 1024;
 // 68.3 KB: fixes for silent content loss (main-content fallback, per-host
 // shadow limits, headings with clutter-like names). Raised to 74 KB when the
 // bundle reached 72.7 KB: fixes from the second live run (tab panels, note asides,
-// comment sections and visible notices). Raise it again only deliberately, with
-// a reason.
-const BUDGET_MIN_BYTES = 74 * 1024;
+// comment sections and visible notices). Raised to 76 KB when the bundle reached
+// 75.0 KB: fixes for content lost silently on new live pages (layout class names,
+// icon-only table cells, kept site menus, lost sections, collapsed answers). Raise
+// it again only deliberately, with a reason.
+const BUDGET_MIN_BYTES = 76 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],
