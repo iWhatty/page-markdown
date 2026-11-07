@@ -666,6 +666,14 @@ test("a page's other sections aren't lost to Readability's choice of one", () =>
   assert.match(markdown, /Out of stock/);
 });
 
+test("story cards around an article aren't sections it lost", () => {
+  const { markdown, extraction } = run("regression/story-cards.html");
+  assert.equal(extraction.method, "readability");
+  assert.equal(extraction.fallbackReason, undefined);
+  assert.match(markdown, /written account of the incident/);
+  assert.doesNotMatch(markdown, /Airport signs|Library catalogue/);
+});
+
 test("icon-only table cells say what the icon says", () => {
   const { markdown } = run("regression/icon-cells.html");
   assert.match(markdown, /^\| Sync \| \u2713 \| \u2713 \|$/m);

@@ -84,8 +84,14 @@ function keptSiteMenu(doc, kept) {
   });
 }
 
+// A heading that is one link names another page, not a section of this one.
+function isStoryCardTitle(h2) {
+  const text = withoutSpaces(h2.textContent || "");
+  return Boolean(h2.closest("a")) || Array.from(h2.querySelectorAll("a:not([href^='#'])")).some((a) => withoutSpaces(a.textContent || "") === text);
+}
+
 function lostMostSections(root, kept) {
-  const headings = Array.from(root.querySelectorAll("h2")).map((h2) => withoutSpaces(h2.textContent || "")).filter(Boolean);
+  const headings = Array.from(root.querySelectorAll("h2")).filter((h2) => !isStoryCardTitle(h2)).map((h2) => withoutSpaces(h2.textContent || "")).filter(Boolean);
   return headings.length >= MIN_SECTIONS && headings.filter((heading) => !kept.includes(heading)).length * 2 > headings.length;
 }
 

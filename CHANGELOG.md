@@ -27,7 +27,8 @@ extraction.
   `<main>` and kept the site's menu (BBC News). `extracted_few_sections_of_page`:
   it kept under 1.5 times `minExtractShare` of the main content and lost most of the
   page's h2 sections, as on Adafruit's product page, which lost its price, stock and
-  technical details. The product page keeps more clutter this way, including its
+  technical details. Headings that are a link to another page don't count, so story
+  cards around an article, as on The Register, don't trigger it. The product page keeps more clutter this way, including its
   "May We Also Suggest" list.
 - **The fallback keeps collapsed answers.** Hidden text of 40 characters or more
   straight after a button or summary is kept, so an FAQ isn't lost when a page
