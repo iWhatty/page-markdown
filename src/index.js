@@ -10,7 +10,7 @@ import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 import { collectPageFacts, pageFactsMarkdown, escapeMarkdown } from "./facts.js";
 import { removeHiddenText, hiddenTextOmissions } from "./hidden.js";
 
-export const VERSION = "0.1.5";
+export const VERSION = "0.2.0";
 
 export { sanitizeToInertDocument, DEFAULT_SANITIZE_OPTIONS, isAdvertisementElement, createInertDocument } from "./sanitize.js";
 export { standardizeDocument } from "./standardize.js";

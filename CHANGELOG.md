@@ -1,10 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-11-07
 
-Fixes for silent content loss, found by the first live run in a real extension
-(HELIOS, 13 pages): four pages lost their main content and reported a normal
-extraction.
+Fixes for silent content loss, found by live runs in a real extension (HELIOS, in
+Brave): pages lost their main content and reported a normal extraction.
+
+A minor version because results change in ways callers can see. `omissions` has two
+new kinds, `inactive_tabs` and `comments`, so an exhaustive `switch` on `kind` in
+TypeScript stops compiling. `extraction.method` can be `main_content` on pages that
+used to report `readability`, those pages come out longer, and some outputs gain a
+closing line.
 
 - **Threads and product grids keep their content.** When Readability keeps less
   than `minExtractShare` (default 0.4) of the page's main content and misses at
@@ -16,8 +21,7 @@ extraction.
 - **Layout class names no longer cost a block its place.** Readability's clutter
   list matches "scroll" and "hidden" in Tailwind's `scroll-mt-2`, `overflow-hidden`
   and `md:hidden`, and it removed what carried them: every code block in Docker's
-  install guide and the plan cards on Tailscale's pricing page. Reproduced and fixed
-  from the served pages, not yet re-run live.
+  install guide and the plan cards on Tailscale's pricing page. Proven live on both.
 - **Icon-only table cells say something.** A cell holding only an SVG came out
   empty, so a comparison table couldn't say which plan has what. It now shows the
   icon's accessible name, else `✓`, `–` or `✗` for those simple shapes, else
@@ -28,17 +32,16 @@ extraction.
   it kept under 1.5 times `minExtractShare` of the main content and lost most of the
   page's h2 sections, as on Adafruit's product page, which lost its price, stock and
   technical details. Headings that are a link to another page don't count, so story
-  cards around an article, as on The Register, don't trigger it. The product page keeps more clutter this way, including its
-  "May We Also Suggest" list.
+  cards around an article, as on The Register, don't trigger it. The product page
+  keeps more clutter this way, including its "May We Also Suggest" list. Proven live
+  on all three.
 - **The fallback keeps collapsed answers.** Hidden text of 40 characters or more
   straight after a button or summary is kept, so an FAQ isn't lost when a page
-  hides its answers with inline styles. Inferred from Allbirds' markup, whose
-  framework should hide them that way once it runs; not yet seen live.
+  hides its answers with inline styles. Proven live on Allbirds' FAQ.
 - **Tab panels hidden by a class name keep their text.** Readability removes
   `class="hidden"`, so Docker's "Specific version" install tab was lost live with
   no closing line. Inactive panels are now recognized by that class too, and Docker's
-  `aria-role` tab strips are read as tabs. Reproduced from Docker's markup with the
-  class its script adds; not yet re-run live.
+  `aria-role` tab strips are read as tabs. Proven live on Docker.
 - **Shadow limits no longer erase a whole host.** A host over the limit keeps what
   fits, limits apply per host in the page's own tree so a large site header can't
   use up the article's budget, and `warnings` now reports the cut.
@@ -76,8 +79,8 @@ extraction.
   after an H1's title is dropped. A heading that is wholly a link to itself becomes
   plain text.
 - A link around block content stays on one line, and `.ad-label` counts as an ad.
-- The browser bundle grows to about 72.7 KB minified; the size ceiling is now
-  74 KB.
+- The browser bundle grows to about 75.4 KB minified; the size ceiling is now
+  76 KB.
 - **The browser run no longer launches by default.** Launching browsers from agent
   sessions has crashed this machine. `npm run test:browser` now needs
   `PAGE_MARKDOWN_ALLOW_BROWSER_LAUNCH=1`, set by a person in their own shell;

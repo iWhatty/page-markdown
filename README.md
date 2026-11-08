@@ -5,7 +5,7 @@ it returns clean Markdown plus metadata. It is written for browsers, for
 example an extension's content script, and runs in Node with a DOM library.
 It is tested in Node, in headless Chrome and Edge, and in a real extension
 (HELIOS, in Brave), but not yet in Firefox or Safari (see
-[Known limits](#known-limits-v01)). It was built for WATT3D's
+[Known limits](#known-limits-v02)). It was built for WATT3D's
 browser extensions.
 
 ```
@@ -165,21 +165,21 @@ recall against a hand-picked reference for each page. `npm run bench` only print
 |---|---|---|---|
 | Fixtures, written with the package | 15/15 | 7/15 | 3/15 |
 | Five pages the fixes were tuned on | 17/17 | 9/17 | 8/17 |
-| **11 pages, once held out** | **97/100** | **74/100** | **61/100** |
-| Their word recall / precision | 96.3% / 89.6% | 85.4% / 95.6% | 98.2% / 72.1% |
+| **11 pages, once held out** | **98/100** | **74/100** | **61/100** |
+| Their word recall / precision | 97.6% / 89.1% | 85.4% / 95.6% | 98.2% / 72.1% |
 
-Don't read 97 as a score on unseen pages. These probes were written before any
+Don't read 98 as a score on unseen pages. These probes were written before any
 engine ran and the package first scored 75/100, but most of the gain since comes
 from fixes for these same pages' failures. New pages are the real test.
 
-It gains recall (96.3% against 85.4%) by keeping more, and pays in precision
-(89.6% against 95.6%). The cost is mostly on the IKEA category page: 29.8% precision,
+It gains recall (97.6% against 85.4%) by keeping more, and pays in precision
+(89.1% against 95.6%). The cost is mostly on the IKEA category page: 29.7% precision,
 because the main-content fallback keeps the page's banners and filters along with
 its products. What it still fails on these pages:
 
 - **Promo boxes kept** inside a BBC Arabic article.
 
-Browser bundle: about 68 KB minified, 24 KB gzip (`npm run size`, ceiling 74 KB
+Browser bundle: about 75 KB minified, 26 KB gzip (`npm run size`, ceiling 76 KB
 minified). Readability is most of it.
 
 `npm run ci` runs the contract suite, the type check and the size check, and must
@@ -187,10 +187,10 @@ exit 0 before a commit. It launches no browser, so run the browser check yoursel
 before a release when the DOM handling has changed. It runs locally; the repo
 deliberately has no cloud CI.
 
-## Known limits (v0.1)
+## Known limits (v0.2)
 
 - **Chromium only so far.** Tested in Node (linkedom), in headless Chrome and
-  Edge, and on live pages in a real extension (HELIOS 0.1.5, in Brave), but not
+  Edge, and on live pages in a real extension (HELIOS, in Brave), but not
   in Firefox or Safari.
 - **Extraction can still be wrong without saying so.** The main-content fallback
   and its warning catch a small share of the page, a kept site menu and lost
@@ -200,6 +200,10 @@ deliberately has no cloud CI.
   the post itself, and its cause isn't known yet.
 - **Answers hidden on an ordinary article can be lost.** Collapsed FAQ answers are
   kept by the main-content fallback only; Readability removes hidden text.
+- **Bylines and dates can be missing from the Markdown.** Readability often leaves
+  them out of the article. Look in `metadata.author` and `metadata.published`.
+- **Note labels can be lost.** On Docker's docs, "Warning", "Note" and "Tip" are
+  dropped, though the blockquotes stay.
 - **Some legacy markup loses paragraph breaks.** Readability can drop runs of
   `<br>` between inline elements in old HTML. The text survives; a paragraph
   break may not.
@@ -212,7 +216,8 @@ deliberately has no cloud CI.
 - **Hidden content stays where only CSS hides it.** The pipeline reads the static
   DOM. The `hidden` attribute and inline `display: none` are understood; a tab
   panel hidden by a stylesheet alone is kept unless its group names the selected
-  one.
+  one. Tabs marked with neither `role` nor `aria-role` and hidden with
+  `class="hidden"` can be lost, with no closing line.
 - **`removeHiddenText` covers hidden runs only.** Zero-width spaces, bidi
   controls and look-alike spaces pass through. It also removes runs that are
   legitimate in some scripts: ideographic variation selectors in CJK names and
