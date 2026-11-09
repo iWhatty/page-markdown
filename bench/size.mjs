@@ -18,7 +18,8 @@ const TARGET_MIN_BYTES = 60 * 1024;
 // 75.0 KB: fixes for content lost silently on new live pages (layout class names,
 // icon-only table cells, kept site menus, lost sections, collapsed answers). Raise
 // it again only deliberately, with a reason.
-const BUDGET_MIN_BYTES = 76 * 1024;
+// 76.8 KB: linked headings, note labels, spanned table cells and single captions.
+const BUDGET_MIN_BYTES = 78 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],
