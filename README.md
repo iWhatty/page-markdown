@@ -202,8 +202,6 @@ deliberately has no cloud CI.
   kept by the main-content fallback only; Readability removes hidden text.
 - **Bylines and dates can be missing from the Markdown.** Readability often leaves
   them out of the article. Look in `metadata.author` and `metadata.published`.
-- **Note labels can be lost.** On Docker's docs, "Warning", "Note" and "Tip" are
-  dropped, though the blockquotes stay.
 - **Some legacy markup loses paragraph breaks.** Readability can drop runs of
   `<br>` between inline elements in old HTML. The text survives; a paragraph
   break may not.

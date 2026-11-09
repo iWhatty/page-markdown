@@ -259,6 +259,14 @@ function standardizeAsides(doc) {
     quote.append(...Array.from(aside.childNodes));
     aside.replaceWith(quote);
   }
+  // Readability treats "header" as clutter, even when it labels a warning.
+  for (const header of Array.from(doc.querySelectorAll("blockquote .admonition-header"))) {
+    const p = doc.createElement("p");
+    const strong = doc.createElement("strong");
+    strong.append(...Array.from(header.childNodes));
+    p.append(strong);
+    header.replaceWith(p);
+  }
 }
 
 /**

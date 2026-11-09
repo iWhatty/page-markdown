@@ -10,13 +10,13 @@
 
 | A | B | C | D |
 | --- | --- | --- | --- |
-| 1 | wide |    | tall |
-| 2 | wide |  | tall |
+| 1 | wide | wide | tall |
+| 2 | wide | wide | tall |
 | 3 | x | y | z |
 
 ## Two header rows
 
-| Name | Sales |    |
+| Name | Sales | Sales |
 | --- | --- | --- |
 | Name | Q1 | Q2 |
 | Widgets | 1 | 2 |
