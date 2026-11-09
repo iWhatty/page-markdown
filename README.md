@@ -44,7 +44,7 @@ import { pageToMarkdown } from "page-markdown";
 const result = pageToMarkdown(document);
 result.markdown;            // "# Title\n\n…"
 result.metadata;            // { url, canonicalUrl, title, author, published, siteName, lang, … }
-result.extraction.method;   // "readability" | "full_page"
+result.extraction.method;   // "readability" | "main_content" | "full_page" | custom method
 
 // In Node, with any DOM implementation (linkedom shown)
 import { parseHTML } from "linkedom";
@@ -57,11 +57,11 @@ pageToMarkdown(doc, { url: "https://example.com/article" });
 | Option | Default | Meaning |
 |---|---|---|
 | `url` | the document's URL | Base for absolute links and images |
-| `extract` | `"readable"` | `"readable"` (Readability, full-page fallback), `"full"`, or a function `(docCopy) => { html, method }` |
-| `minExtractChars` | `100` | Below this, readable extraction falls back to the full page |
+| `extract` | `"readable"` | `"readable"` (Readability with main-content or full-page fallback), `"full"`, or a function `(docCopy) => { html, method }` |
+| `minExtractChars` | `100` | Below this, Readability falls back to a sufficiently long `<main>` or `[role="main"]`, else the full page; custom extractors fall back to the full page |
 | `minExtractShare` | `0.4` | When Readability keeps less than this share of the page's main content (and misses at least 500 characters), the main content is used instead: forum threads and product grids. `0` turns it off |
 | `includeFullPage` | `false` | Also return `fullPageMarkdown` |
-| `includeTitle` | `true` | Start readable output with `# <headline>`: the page's H1, else its title without the site name |
+| `includeTitle` | `true` | Add `# <headline>` to Readability or main-content output when no H1 remains; skipped in `text_only` mode |
 | `recoverLead` | `true` | Restore a lead paragraph the extractor dropped, when it matches the meta description |
 | `pageFacts` | `false` | Append `## Page facts`: short label/value pairs outside the article (a sidebar's version or license, spec rows, infobox rows) that the extractor dropped. `extraction.pageFacts` counts them |
 | `removeHiddenText` | `false` | Remove text hidden from people but read by models: runs of tag characters, variation selectors, invisible operators and reserved tag-plane code points, found by [text-sanctifier](https://github.com/iWhatty/text-sanctifier)'s `findHiddenRuns`. Applies to `markdown` (fenced code included), `fullPageMarkdown` and `metadata`. The England, Scotland and Wales flags and a lone emoji or text presentation selector are kept. `omissions` gets one entry per kind (`hidden_tag`, `hidden_variation_selector`, `hidden_invisible_operator`, `hidden_reserved_tag_plane`) with `count` runs and `chars` code points removed from `markdown` |
@@ -88,14 +88,15 @@ The stages are also exported for advanced use: `sanitizeToInertDocument`,
 | `metadata.headline` | `string?` | The heading chosen for the capture |
 | `metadata.extractedTitle`, `byline` | `string?` | What the extractor reported |
 | `extraction.method` | `string` | `"readability"`, `"main_content"`, `"full_page"`, or the name a custom extractor gave |
-| `extraction.fallbackReason` | `string?` | Why extraction fell back: `extracted_small_share_of_page`, `extracted_site_menu` or `extracted_few_sections_of_page` (to the main content), or `extractor_found_nothing`, `extracted_text_below_minimum` or `extractor_error: …` (to the full page) |
+| `extraction.fallbackReason` | `string?` | Why extraction fell back: `extracted_small_share_of_page`, `extracted_site_menu` or `extracted_few_sections_of_page` use the main content; `extractor_found_nothing`, `extracted_text_below_minimum` or `extractor_error: ...` use a sufficiently long main-content region for Readability, else the full page. Custom extractors fall back to the full page |
 | `extraction.leadRecovered` | `true?` | A dropped lead paragraph was restored |
 | `extraction.pageFacts` | `number?` | How many facts `pageFacts` appended |
 | `omissions[]` | `{ kind, count, note, chars? }` | What was left out or removed. `kind` is `shadow_content`, `json_line`, `inactive_tabs`, `comments` or a `hidden_*` kind; only `hidden_*` entries have `chars`. All but `hidden_*` also add a closing line to `markdown`, as a fallback does, so a caller that passes on only the Markdown still says so |
 | `warnings[]` | `string` | Read these before trusting a capture: a fallback, or shadow content cut off at the capture limit, in which case the main content may be missing |
 | `stats.mode` | `string` | The output mode used |
 | `stats.extractedHtmlChars`, `convertedChars`, `markdownChars` | `number` | Sizes at each step. `markdownChars` is the returned Markdown's length |
-| `stats.standardization` | `object` | Counts of what standardizing changed: `lazyImagesResolved`, `inlineImagesDropped`, `scriptLinksUnwrapped`, `invalidLinksUnwrapped`, `emptyLinksRemoved`, `preWrapped`, `headingWidgetsRemoved`, `headingsUnwrapped` |
+| `stats.pageTextChars` | `number` | Whitespace-normalized text length of the standardized page at capture time |
+| `stats.standardization` | `object` | Counts of what standardizing changed: `lazyImagesResolved`, `inlineImagesDropped`, `scriptLinksUnwrapped`, `invalidLinksUnwrapped`, `emptyLinksRemoved`, `preWrapped`, `headingWidgetsRemoved`, `headingsUnwrapped`; `omittedTabs` lists labels of inactive panels left out |
 
 A `?` marks a field that is absent, not empty, when it doesn't apply.
 
@@ -127,7 +128,7 @@ const { markdown: safe, omissions } = pageToMarkdown(document, { removeHiddenTex
 ## Quality
 
 `npm test` runs the contract suite. It covers:
-- golden outputs for 34 fixtures;
+- golden outputs for 51 fixtures;
 - regressions for known converter bugs, including dropped lead paragraphs,
   raw HTML tables, flattened code in tables, site-suffixed titles and
   unescaped table pipes;
@@ -179,7 +180,7 @@ its products. What it still fails on these pages:
 
 - **Promo boxes kept** inside a BBC Arabic article.
 
-Browser bundle: about 75 KB minified, 26 KB gzip (`npm run size`, ceiling 76 KB
+Browser bundle: about 77 KB minified, 27 KB gzip (`npm run size`, ceiling 78 KB
 minified). Readability is most of it.
 
 `npm run ci` runs the contract suite, the type check and the size check, and must

@@ -953,3 +953,62 @@ test("malformed links are checked with a base element and left alone without a b
   assert.equal(before.stats.standardization.invalidLinksUnwrapped, 0);
   assert.equal(after.stats.standardization.invalidLinksUnwrapped, 4);
 });
+
+test("text_only keeps image alt text without parenthesized URL fragments", () => {
+  const { document } = parseHTML('<html><body><p>Before <img alt="a [sample] &amp; more" src="/a(b).png" title="Example image"> after.</p><p><code>![literal](a(b).png)</code></p></body></html>');
+  const result = pageToMarkdown(document, { extract: "full", mode: "text_only", url: URL_BASE });
+  assert.equal(result.markdown, "Before a \\[sample\\] & more after.\n\n`![literal](a(b).png)`");
+});
+
+for (const cells of ["<td>Only cell</td>", "<th>Command</th><td><pre><code>run()</code></pre></td>", "<td><table><tr><td>Nested cell</td></tr></table></td>"]) {
+  test(`block-rendered tables keep their caption: ${cells}`, () => {
+    const html = `<table><caption>A &amp; B</caption><tr>${cells}</tr></table>`;
+    const markdown = htmlToMarkdown(html);
+    assert.match(markdown, /^A & B\n\n/);
+    assert.equal(markdown.split("A & B").length - 1, 1);
+    const { document } = parseHTML(`<html><body>${html}</body></html>`);
+    assert.equal(pageToMarkdown(document, { extract: "full" }).markdown, cleanMarkdown(markdown).markdown);
+  });
+}
+
+test("text_only removes complete image destinations and titles", async () => {
+  const { applyMode } = await import("../src/index.js");
+  for (const image of ['![alt](https://example.com/a(b).png)', '![alt](a.png "a title")', '[![alt](a(b).png)](page)']) {
+    assert.equal(applyMode(image, "text_only"), "alt", image);
+  }
+});
+
+test("custom extraction receives a copy and preserves its result metadata", async () => {
+  const { extractContent } = await import("../src/index.js");
+  const { document } = parseHTML("<html><body><main><p>Original article.</p></main></body></html>");
+  const original = document.toString();
+  const expected = { html: "<p>Custom article.</p>", method: "custom", title: "Custom title", byline: "Author" };
+  const result = extractContent(document, { minExtractChars: 1, extract(copy) {
+    assert.notEqual(copy, document);
+    copy.body.innerHTML = "";
+    return expected;
+  } });
+  assert.deepEqual(result, expected);
+  assert.equal(document.toString(), original);
+});
+
+for (const [extract, reason] of [
+  [() => undefined, "extractor_found_nothing"],
+  [() => ({ html: "", method: "custom" }), "extractor_found_nothing"],
+  [() => ({ html: "<p>Short.</p>", method: "custom" }), "extracted_text_below_minimum"],
+  [() => { throw new Error("unavailable"); }, "extractor_error: unavailable"],
+]) {
+  test(`custom extraction falls back to the full page: ${extract}`, async () => {
+    const { extractContent } = await import("../src/index.js");
+    const { document } = parseHTML("<html><body><nav>Menu</nav><main><p>Original article.</p></main></body></html>");
+    const result = extractContent(document, { extract });
+    assert.equal(result.method, "full_page");
+    assert.equal(result.html, document.body.innerHTML);
+    assert.equal(result.fallbackReason, reason);
+  });
+}
+
+test("grid table captions still appear once above the header", () => {
+  assert.equal(htmlToMarkdown("<table><caption>A &amp; B</caption><tr><th>Key</th><th>Value</th></tr><tr><td>one</td><td>two</td></tr></table>"),
+    "A & B\n\n| Key | Value |\n| --- | --- |\n| one | two |");
+});

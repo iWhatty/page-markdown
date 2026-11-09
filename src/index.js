@@ -60,7 +60,7 @@ function hasTopHeading(markdown) {
  * @property {string} [url] page URL for absolute links (default: the document's URL)
  * @property {"full"|"no_links"|"text_only"} [mode="full"]
  * @property {"readable"|"full"|import("./extract.js").Extractor} [extract="readable"]
- *   "readable": Readability with full-page fallback; "full": the whole body;
+ *   "readable": Readability with main-content or full-page fallback; "full": the whole body;
  *   or a custom extractor receiving a copy of the standardized document.
  * @property {number} [minExtractChars=100] below this, fall back to the page's <main>
  *   if it marks one and it holds enough, else to the full page

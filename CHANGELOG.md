@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Text-only output keeps image alt text without URL fragments from parentheses or titles.
+- Captions survive in single-column, nested and code-bearing tables.
+
 - **AP News linked names to impossible web addresses.** Malformed hrefs such as
   `https://ron%20desantis/` now keep their text without a link when a base URL is
   available.

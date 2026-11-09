@@ -317,8 +317,8 @@ function tableRules(turndown) {
   });
   turndown.addRule("pmTableCaption", {
     filter: "caption",
-    replacement() {
-      return "";
+    replacement(content, node) {
+      return isBlockCell(node) ? `\n${content}\n` : "";
     },
   });
 }

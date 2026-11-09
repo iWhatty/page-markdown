@@ -103,7 +103,7 @@ const stripEmphasis = (md) => replaceOutsideCode(
   /(?<![\w*])([*_])(?!\s)(.+?)(?<!\s)\1(?![\w*])/,
   (all, mark, text) => text,
 );
-const stripImages = (md) => replaceOutsideCode(md, /!\[([^\]]*)\]\([^)]*\)/, (all, alt) => alt);
+const stripImages = (md) => replaceOutsideCode(md, INLINE_LINK, (all, bang, text) => text);
 
 /**
  * Output modes. "no_links" keeps link text. "text_only" also drops headings,
