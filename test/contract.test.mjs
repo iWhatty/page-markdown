@@ -913,3 +913,43 @@ test("the article's upper-deck kicker reads as a label", () => {
   assert.match(markdown, /^# Laptop review\n\n\*\*PROLED XDR\*\*\n/);
   assert.doesNotMatch(markdown, /^PROLED XDR$/m);
 });
+
+test("malformed links keep their text without a link on AP News", () => {
+  const result = run("regression/malformed-links.html", { url: "https://apnews.com/article/florida-campaign" });
+  assert.equal(result.extraction.method, "readability");
+  for (const text of ["Ron DeSantis", "the Florida governor", "the candidate", "the campaign statement"]) {
+    assert.ok(result.markdown.includes(text), text);
+    assert.ok(!result.markdown.includes("[" + text + "]("), text);
+  }
+  for (const [text, href] of [
+    ["the local report", "https://apnews.com/news/x"],
+    ["the earlier report", "https://apnews.com/article/x.html"],
+    ["the next page", "https://apnews.com/article/florida-campaign?page=2"],
+    ["the national report", "https://example.org/report"],
+    ["the reporting notes", "#notes"],
+    ["the newsroom", "mailto:news@example.org"],
+    ["the phone desk", "tel:+15551234567"],
+    ["the file archive", "ftp://example.org/report"],
+    ["the custom record", "custom:report"],
+  ]) assert.ok(result.markdown.includes("[" + text + "](" + href + ")"), text);
+  assert.equal(result.stats.standardization.invalidLinksUnwrapped, 4);
+  assert.equal(result.stats.standardization.scriptLinksUnwrapped, 0);
+});
+
+test("malformed links are checked with a base element and left alone without a base", () => {
+  const document = load("regression/malformed-links.html");
+  const before = pageToMarkdown(document);
+  for (const [text, href] of [
+    ["Ron DeSantis", "https://ron%20desantis/"],
+    ["the Florida governor", "https://Ron DeSantis"],
+    ["the candidate", "//Ron DeSantis"],
+    ["the campaign statement", "https://{{Click Text}}"],
+  ]) assert.ok(before.markdown.includes("[" + text + "](" + href + ")"), text);
+  document.head.insertAdjacentHTML("beforeend", '<base href="https://apnews.com/article/">');
+  const after = pageToMarkdown(document);
+  assert.ok(after.markdown.includes("[the earlier report](https://apnews.com/article/x.html)"));
+  assert.ok(after.markdown.includes("Ron DeSantis"));
+  assert.ok(!after.markdown.includes("[Ron DeSantis]("));
+  assert.equal(before.stats.standardization.invalidLinksUnwrapped, 0);
+  assert.equal(after.stats.standardization.invalidLinksUnwrapped, 4);
+});

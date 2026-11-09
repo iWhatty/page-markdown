@@ -115,6 +115,15 @@ function standardizeLinks(doc, base, stats) {
       stats.emptyLinksRemoved += 1;
       continue;
     }
+    if (base && href) {
+      try {
+        new URL(href, base);
+      } catch {
+        a.replaceWith(...Array.from(a.childNodes));
+        stats.invalidLinksUnwrapped += 1;
+        continue;
+      }
+    }
     if (href) a.setAttribute("href", resolveUrl(href, base));
   }
 }
@@ -298,6 +307,7 @@ export function standardizeDocument(doc, options = {}) {
     lazyImagesResolved: 0,
     inlineImagesDropped: 0,
     scriptLinksUnwrapped: 0,
+    invalidLinksUnwrapped: 0,
     emptyLinksRemoved: 0,
     preWrapped: 0,
     headingWidgetsRemoved: 0,

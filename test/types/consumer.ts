@@ -72,6 +72,7 @@ export const counts: number[] = [
   result.stats.convertedChars,
   result.stats.markdownChars,
   result.stats.standardization.preWrapped,
+  result.stats.standardization.invalidLinksUnwrapped,
 ];
 export const mode: "full" | "no_links" | "text_only" = result.stats.mode;
 

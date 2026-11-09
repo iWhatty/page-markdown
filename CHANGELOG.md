@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **AP News linked names to impossible web addresses.** Malformed hrefs such as
+  `https://ron%20desantis/` now keep their text without a link when a base URL is
+  available.
 - **Linked story headings stay headings.** On BBC News, card headlines appeared
   inside link text and the logo left an empty heading. Headlines now link from
   real headings, card text and images stay, and emptied headings are removed.
