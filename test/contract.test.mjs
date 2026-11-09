@@ -852,6 +852,7 @@ test("a heading emptied by removed content does not leave a marker", () => {
   const { markdown } = run("regression/heading-removed-content.html", { extract: "full" });
   assert.doesNotMatch(markdown, /^#\s*$/m);
   assert.match(markdown, /News content\./);
+});
 
 test("callout labels survive extraction without duplication", () => {
   const { markdown, extraction } = run("regression/note-labels.html");
@@ -881,6 +882,8 @@ test("a linked FAQ answer stays after its question", () => {
   assert.equal(extraction.method, "readability");
   assert.match(markdown, /For Advanced Tailscale SSH[\s\S]*Check mode itself is available for all plans, including the Personal plan\./);
   assert.match(markdown, /\[To change the check mode length from the default value\]\(https:\/\/example.com\/checkperiod\), a Premium or Enterprise plan is required\./);
+});
+
 test("an image's matching caption replaces repeated alt and title text", () => {
   for (const extract of ["readable", "full"]) {
     const { markdown } = run("regression/figure-captions.html", { extract });
