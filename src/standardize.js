@@ -68,6 +68,21 @@ function hasMeaningfulContent(el) {
  * data: placeholder. Then drop images that are still inline data.
  */
 function standardizeImages(doc, base, stats) {
+  const squash = (text) => (text || "").replace(/\s+/g, " ").trim();
+  for (const element of doc.querySelectorAll("figcaption, .caption")) {
+    const caption = squash(element.textContent);
+    if (!caption || element.closest(".pswp-caption-content") || isHiddenElement(element)) continue;
+    const figure = element.closest("figure");
+    // PhotoSwipe's copy is hidden by CSS; galleries may have only that copy.
+    for (const copy of (figure || element.parentElement?.parentElement)?.querySelectorAll(".pswp-caption-content") || []) {
+      if (squash(copy.textContent) === caption) copy.remove();
+    }
+    for (const img of figure?.querySelectorAll("img") || []) {
+      for (const attr of ["alt", "title"]) {
+        if (squash(img.getAttribute(attr)) === caption) img.removeAttribute(attr);
+      }
+    }
+  }
   for (const img of Array.from(doc.querySelectorAll("img"))) {
     const src = img.getAttribute("src") || "";
     if (!src || src.startsWith("data:")) {
@@ -170,6 +185,10 @@ function removeOwnPermalinks(heading, stats) {
  * remaining element is the heading with the heading itself.
  */
 function standardizeHeadings(doc, stats) {
+  // An upper-deck kicker belongs with the title, not ordinary body prose.
+  for (const label of doc.querySelectorAll(".upper-deck__text")) {
+    label.innerHTML = `<strong>${label.innerHTML}</strong>`;
+  }
   for (const widget of Array.from(doc.querySelectorAll(EDIT_WIDGETS))) {
     if (!(widget.textContent || "").trim() || widget.matches?.(ALWAYS_REMOVED_WIDGETS)) {
       widget.remove();

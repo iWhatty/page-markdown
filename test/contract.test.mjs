@@ -837,3 +837,33 @@ test("pageFacts skips teasers, form controls and cookie settings", () => {
   assert.match(markdown, /- Version: 1\.2\.3/);
   assert.doesNotMatch(markdown, /Teaser for|Sign up now|Always Active/);
 });
+
+test("an image's matching caption replaces repeated alt and title text", () => {
+  for (const extract of ["readable", "full"]) {
+    const { markdown } = run("regression/figure-captions.html", { extract });
+    assert.match(markdown, /\[!\[\]\(https:\/\/example\.com\/same\.jpg\)\]\(https:\/\/example\.com\/full\.jpg\)/);
+    assert.match(markdown, /A bright & clear _screen\._/);
+    assert.equal(markdown.match(/A distant\s+mountain\./g)?.length, 1);
+    assert.match(markdown, /!\[A laptop viewed from the side\.\].*different\.jpg "Side view"/);
+    for (const text of ["The ports are on the left.", "A captionless image.", "Keep this title", "Keep this description.", "Outside the figure.", "![US]", "us"]) assert.ok(markdown.includes(text), text);
+  }
+});
+
+test("matching lightbox captions appear once while gallery images and unique captions stay", () => {
+  for (const extract of ["readable", "full"]) {
+    const { markdown } = run("regression/lightbox-captions.html", { extract });
+    assert.equal(markdown.match(/The screen looks bright\./g)?.length, 1);
+    assert.equal(markdown.match(/Credit: \[Alex\]/g)?.length, 1);
+    assert.equal(markdown.match(/The laptop on a table\./g)?.length, 1);
+    assert.equal(markdown.match(/Hero photographer/g)?.length, 1);
+    assert.match(markdown, /\[Alex\]\(https:\/\/example\.com\/photographer\)/);
+    for (const text of ["![A laptop screen]", "Extra lightbox information.", "The side of the laptop.", "First gallery image", "Second gallery image", "First gallery caption.", "Second gallery caption."]) assert.ok(markdown.includes(text), text);
+    for (const image of ["screen.jpg", "different.jpg", "gallery-one.jpg", "gallery-two.jpg"]) assert.equal(markdown.split(image).length - 1, 1, image);
+  }
+});
+
+test("the article's upper-deck kicker reads as a label", () => {
+  const { markdown } = run("regression/lightbox-captions.html");
+  assert.match(markdown, /^# Laptop review\n\n\*\*PROLED XDR\*\*\n/);
+  assert.doesNotMatch(markdown, /^PROLED XDR$/m);
+});

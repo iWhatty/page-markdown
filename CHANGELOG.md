@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Ars Technica's MacBook Pro review repeated photo captions and left its kicker
+  as body text.** Matching lightbox captions and image descriptions now appear
+  once, distinct alt text and gallery images stay, and the kicker reads as a label.
+
 ## 0.2.0 — 2026-11-07
 
 Fixes for silent content loss, found by live runs in a real extension (HELIOS, in
