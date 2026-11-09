@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Linked story headings stay headings.** On BBC News, card headlines appeared
+  inside link text and the logo left an empty heading. Headlines now link from
+  real headings, card text and images stay, and emptied headings are removed.
+
 ## 0.2.0 — 2026-11-07
 
 Fixes for silent content loss, found by live runs in a real extension (HELIOS, in

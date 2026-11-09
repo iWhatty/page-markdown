@@ -837,3 +837,19 @@ test("pageFacts skips teasers, form controls and cookie settings", () => {
   assert.match(markdown, /- Version: 1\.2\.3/);
   assert.doesNotMatch(markdown, /Teaser for|Sign up now|Always Active/);
 });
+
+test("linked cards keep headings, text and images", () => {
+  const { markdown } = run("regression/linked-heading-card.html", { extract: "full" });
+  assert.match(markdown, /^## \[Headline _today_\]\(https:\/\/example\.com\/story "Story"\)$/m);
+  assert.match(markdown, /!\[Photo\]\(https:\/\/example\.com\/photo\.jpg\)/);
+  assert.match(markdown, /Summary/);
+  assert.match(markdown, /17 hrs ago/);
+  assert.match(markdown, /^## \[Other headline\]\(https:\/\/example\.com\/other\)$/m);
+  assert.match(markdown, /\[Plain link\]\(https:\/\/example\.com\/plain\)/);
+});
+
+test("a heading emptied by removed content does not leave a marker", () => {
+  const { markdown } = run("regression/heading-removed-content.html", { extract: "full" });
+  assert.doesNotMatch(markdown, /^#\s*$/m);
+  assert.match(markdown, /News content\./);
+});

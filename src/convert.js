@@ -13,14 +13,29 @@ export const TURNDOWN_OPTIONS = Object.freeze({
   hr: "---",
 });
 
+function linkDestination(node) {
+  const href = node.getAttribute("href").replace(/([()])/g, "\\$1");
+  const title = (node.getAttribute("title") || "").replace(/\s*\n+\s*/g, " ").replace(/"/g, '\\"');
+  return `${href}${title ? ` "${title}"` : ""}`;
+}
+
 function gfmInlineRules(turndown) {
   // Link text is one line: a link around blocks would otherwise split across lines.
   turndown.addRule("pmInlineLink", {
     filter: (node) => node.nodeName === "A" && Boolean(node.getAttribute("href")),
     replacement(content, node) {
-      const href = node.getAttribute("href").replace(/([()])/g, "\\$1");
-      const title = (node.getAttribute("title") || "").replace(/\s*\n+\s*/g, " ").replace(/"/g, '\\"');
-      return `[${content.trim().replace(/\s*\n+\s*/g, " ")}](${href}${title ? ` "${title}"` : ""})`;
+      if (node.querySelector("h1, h2, h3, h4, h5, h6")) return `\n\n${content}\n\n`;
+      return `[${content.trim().replace(/\s*\n+\s*/g, " ")}](${linkDestination(node)})`;
+    },
+  });
+  turndown.addRule("pmHeading", {
+    filter: ["h1", "h2", "h3", "h4", "h5", "h6"],
+    replacement(content, node) {
+      content = content.trim();
+      if (!content) return "";
+      const link = closest(node, "A");
+      if (link?.getAttribute("href")) content = `[${content.replace(/\s*\n+\s*/g, " ")}](${linkDestination(link)})`;
+      return `\n\n${"#".repeat(Number(node.nodeName[1]))} ${content}\n\n`;
     },
   });
   turndown.addRule("pmStrikethrough", {
