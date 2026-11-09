@@ -96,17 +96,19 @@ function tableGrid(rows) {
   const before = new Map();
   const after = new Map();
   let carry = [];
-  let group = null;
+  let group;
   for (const row of rows) {
     if (row.parentNode !== group) carry = [];
     group = row.parentNode;
     let column = 0;
-    let slots = [];
+    let slots;
     const take = (gaps) => {
       while (carry[column]?.left > 0 || (gaps && column < carry.length)) {
         const entry = carry[column];
-        slots.push(entry?.left > 0 ? entry.cell : null);
-        if (entry?.left > 0) entry.left -= 1;
+        if (entry?.left > 0) {
+          slots.push(entry.cell);
+          entry.left -= 1;
+        } else slots.push(null);
         column += 1;
       }
     };
@@ -115,7 +117,8 @@ function tableGrid(rows) {
       take();
       before.set(cell, slots);
       columns.set(cell, column);
-      const left = Number.parseInt(cell.getAttribute?.("rowspan") || "1", 10) - 1;
+      const rowspan = Number.parseInt(cell.getAttribute?.("rowspan"), 10);
+      const left = rowspan === 0 ? Infinity : rowspan - 1;
       const span = spanOf(cell);
       for (let i = 0; i < span; i += 1) {
         if (left > 0) carry[column + i] = { cell, left };

@@ -488,6 +488,35 @@ test("a row span repeats its cell, so later cells stay in their columns", () => 
   assert.match(markdown, /^\| Name \| Q1 \| Q2 \|$/m);
 });
 
+for (const group of ["", "thead", "tbody", "tfoot"]) {
+  for (const colspan of [1, 2]) {
+    test(`rowspan="0" fills its ${group || "implicit"} row group with colspan="${colspan}"`, () => {
+      const headers = colspan === 1 ? "<th>A</th><th>B</th>" : "<th>A</th><th>B</th><th>C</th>";
+      const rows = `<tr><td rowspan="0" colspan="${colspan}">Group</td><td>one</td></tr><tr><td>two</td></tr><tr><td>three</td></tr>`;
+      const body = group ? `<${group}>${rows}</${group}>` : rows;
+      const html = `<table><tr>${headers}</tr>${body}<tbody><tr><td>next</td><td>end</td></tr></tbody></table>`;
+      const { document } = parseHTML(`<html><body>${html}</body></html>`);
+      for (const markdown of [htmlToMarkdown(html), pageToMarkdown(document, { extract: "full" }).markdown]) {
+        for (const value of ["one", "two", "three"]) {
+          assert.ok(markdown.includes(`| ${"Group | ".repeat(colspan)}${value} |`), markdown);
+        }
+        assert.ok(markdown.includes("| next | end |"), markdown);
+      }
+    });
+  }
+}
+
+test("a zero row span fills trailing slots", () => {
+  const html = '<table><tr><th>A</th><th>B</th><th>C</th></tr><tr><td>one</td><td rowspan="0" colspan="2">Group</td></tr><tr><td>two</td></tr></table>';
+  assert.equal(htmlToMarkdown(html),
+    "| A | B | C |\n| --- | --- | --- |\n| one | Group | Group |\n| two | Group | Group |");
+});
+
+test("a zero row span with colspan keeps code under its column header", () => {
+  const html = '<table><thead><tr><th>A</th><th>B</th><th>C</th></tr></thead><tbody><tr><td rowspan="0" colspan="2">Group</td><td>one</td></tr><tr><td><pre><code>two()</code></pre></td></tr></tbody></table>';
+  assert.match(htmlToMarkdown(html), /\*\*C\*\*\n+```\ntwo\(\)\n```/);
+});
+
 test("a table of code labels cells by column, row spans counted", () => {
   const { markdown } = run("regression/table-rowspan.html", { extract: "full" });
   assert.match(markdown, /\*\*Kind\*\*\n\nLoop\n+\*\*Example\*\*\n+```\nfor x in y:\n {4}pass\n```/);
