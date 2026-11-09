@@ -14,6 +14,9 @@
   spans the whole row, as a caption does.
 - **FAQ answers inside `<details>` survive.** Readability dropped a one-paragraph
   answer wrapper with a link in it: Tailscale's answer on SSH check mode.
+- **Ars Technica's MacBook Pro review repeated photo captions and left its kicker
+  as body text.** Matching lightbox captions and image descriptions now appear
+  once, distinct alt text and gallery images stay, and the kicker reads as a label.
 
 ## 0.2.0 — 2026-11-07
 
