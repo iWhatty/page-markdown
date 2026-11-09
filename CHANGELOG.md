@@ -5,6 +5,15 @@
 - **Linked story headings stay headings.** On BBC News, card headlines appeared
   inside link text and the logo left an empty heading. Headlines now link from
   real headings, card text and images stay, and emptied headings are removed.
+- **Note labels stay.** Readability removed Docker's `.admonition-header` because
+  its name holds "header", so its Warning, Note and Tip labels were lost. Each now
+  opens its blockquote in bold.
+- **Spanned cells fill their columns.** A cell with `colspan` used to fill one
+  column and leave blanks, so Tailscale's "Unlimited" across all plans read as
+  Personal only. Its value now repeats in each column it covers, except when it
+  spans the whole row, as a caption does.
+- **FAQ answers inside `<details>` survive.** Readability dropped a one-paragraph
+  answer wrapper with a link in it: Tailscale's answer on SSH check mode.
 
 ## 0.2.0 — 2026-11-07
 

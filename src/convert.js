@@ -90,8 +90,7 @@ function spanOf(cell) {
 }
 
 // Each cell's column, and the row-spanned cells that fill the slots before it
-// (or at the row's end): null for the rest of a cell's column span. A span
-// stops at its row group.
+// (or at the row's end). A span stops at its row group.
 function tableGrid(rows) {
   const columns = new Map();
   const before = new Map();
@@ -119,7 +118,7 @@ function tableGrid(rows) {
       const left = Number.parseInt(cell.getAttribute?.("rowspan") || "1", 10) - 1;
       const span = spanOf(cell);
       for (let i = 0; i < span; i += 1) {
-        if (left > 0) carry[column + i] = { cell: i ? null : cell, left };
+        if (left > 0) carry[column + i] = { cell, left };
       }
       column += span;
     }
@@ -278,8 +277,10 @@ function tableRules(turndown) {
       const info = tableInfo(closest(node, "TABLE"));
       const text = cellText(content);
       info.text.set(node, text);
-      const pad = " |   ".repeat(spanOf(node) - 1);
-      return `${slotsMarkdown(info.before.get(node), info)} ${text}${pad} |`;
+      // A spanned value holds for each column it covers, unless it's the whole row (a caption).
+      const span = spanOf(node);
+      const whole = node.parentNode?.children?.length === 1;
+      return `${slotsMarkdown(info.before.get(node), info)} ${text} |${(whole ? "    |" : ` ${text} |`).repeat(span - 1)}`;
     },
   });
   turndown.addRule("pmTableRow", {

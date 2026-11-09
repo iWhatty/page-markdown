@@ -483,8 +483,8 @@ test("a row span repeats its cell, so later cells stay in their columns", () => 
   assert.match(markdown, /^\| West \| LA \| 4 \|$/m);
   assert.match(markdown, /^\| West \| SF \| 1 \|$/m);
   assert.match(markdown, /^\| East \| NY \| 8 \|$/m);
-  assert.match(markdown, /^\| 1 \| wide \| +\| tall \|$/m);
-  assert.match(markdown, /^\| 2 \| wide \| +\| tall \|$/m);
+  assert.match(markdown, /^\| 1 \| wide \| wide \| tall \|$/m);
+  assert.match(markdown, /^\| 2 \| wide \| wide \| tall \|$/m);
   assert.match(markdown, /^\| Name \| Q1 \| Q2 \|$/m);
 });
 
@@ -852,4 +852,33 @@ test("a heading emptied by removed content does not leave a marker", () => {
   const { markdown } = run("regression/heading-removed-content.html", { extract: "full" });
   assert.doesNotMatch(markdown, /^#\s*$/m);
   assert.match(markdown, /News content\./);
+
+test("callout labels survive extraction without duplication", () => {
+  const { markdown, extraction } = run("regression/note-labels.html");
+  assert.equal(extraction.method, "readability");
+  for (const label of ["Warning", "Note", "Tip"]) assert.ok(markdown.includes("> **" + label + "**\n"), label);
+  assert.equal((markdown.match(/\bWarning\b/g) || []).length, 1);
+  assert.equal((markdown.match(/\bNote\b/g) || []).length, 2);
+  assert.equal((markdown.match(/\bTip\b/g) || []).length, 2);
+});
+
+test("column spans repeat content and keep every row aligned", () => {
+  const { markdown } = run("regression/table-colspan.html", { extract: "full" });
+  assert.ok(markdown.includes("| Feature | Personal | Personal | Premium | Enterprise |"));
+  assert.ok(markdown.includes("| User Devices | **Unlimited** | **Unlimited** | **Unlimited** | **Unlimited** |"));
+  assert.ok(markdown.includes("| Limits | One | a \\| b | a \\| b | Four |"));
+  assert.ok(markdown.includes("| Empty |  |  | Three | Four |"));
+  assert.ok(markdown.includes("| Short | Shared | Shared | | |"));
+  assert.ok(markdown.includes("| Combined | Both | Both | Three | Four |"));
+  assert.ok(markdown.includes("| Next | Both | Both | Five | Six |"));
+  for (const row of markdown.split("\n").filter(line => line.startsWith("|"))) {
+    assert.equal(row.split(/(?<!\\)\|/).length - 2, 5, row);
+  }
+});
+
+test("a linked FAQ answer stays after its question", () => {
+  const { markdown, extraction } = run("regression/faq-linked-answer.html");
+  assert.equal(extraction.method, "readability");
+  assert.match(markdown, /For Advanced Tailscale SSH[\s\S]*Check mode itself is available for all plans, including the Personal plan\./);
+  assert.match(markdown, /\[To change the check mode length from the default value\]\(https:\/\/example.com\/checkperiod\), a Premium or Enterprise plan is required\./);
 });

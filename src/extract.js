@@ -103,6 +103,12 @@ const LAYOUT_CLASS = /^(?:\S+:)?(?:-?scroll-[mp][a-z]?-\S+|overflow(?:-[xy])?-(?
 // Docusaurus's heading "anchorTargetHideOnScrollNavbar" matches "scroll", and so
 // does the scroll-mt-2 on every code block of Docker's docs.
 function withoutMisleadingNames(doc) {
+  // Single-paragraph FAQ wrappers can fail Readability's link-density check.
+  for (const el of Array.from(doc.querySelectorAll("details div")).reverse()) {
+    const p = el.firstElementChild;
+    if (p?.localName === "p" && el.children.length === 1 && el.textContent === p.textContent
+      && !isHiddenElement(el) && el.getAttribute("aria-hidden") !== "true") el.replaceWith(...Array.from(el.childNodes));
+  }
   for (const heading of Array.from(doc.querySelectorAll("h1, h2, h3, h4, h5, h6"))) {
     heading.removeAttribute("class");
     heading.removeAttribute("id");
