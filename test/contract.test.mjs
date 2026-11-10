@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseHTML } from "linkedom";
 
-import { pageToMarkdown } from "../src/index.js";
+import { pageToMarkdown, standardizeDocument } from "../src/index.js";
 import { cleanMarkdown } from "../src/clean.js";
 import { htmlToMarkdown } from "../src/convert.js";
 import { GOLDEN_OPTIONS, GOLDEN_DIRS } from "./golden-options.mjs";
@@ -963,6 +963,29 @@ test("malformed links keep their text without a link on AP News", () => {
   ]) assert.ok(result.markdown.includes("[" + text + "](" + href + ")"), text);
   assert.equal(result.stats.standardization.invalidLinksUnwrapped, 4);
   assert.equal(result.stats.standardization.scriptLinksUnwrapped, 0);
+});
+
+test("special-scheme links reject host spaces even when the URL parser accepts them", (t) => {
+  const NativeURL = globalThis.URL;
+  globalThis.URL = class extends NativeURL {
+    constructor(value, base) {
+      if (value === "https://bad%20host/") {
+        super("https://placeholder.invalid/");
+        Object.defineProperties(this, {
+          hostname: { value: "bad%20host" },
+          href: { value },
+        });
+      } else super(value, base);
+    }
+  };
+  t.after(() => { globalThis.URL = NativeURL; });
+  const document = pageWith('<p><a href="https://bad%20host/">Bad host</a> <a href="/a%20b?q=x%20y">Valid path</a> <a href="custom://name%20example">Opaque host</a></p>');
+  const stats = standardizeDocument(document, { url: URL_BASE });
+  assert.equal(stats.invalidLinksUnwrapped, 1);
+  assert.match(document.body.textContent, /Bad host/);
+  assert.deepEqual(Array.from(document.querySelectorAll("a"), (a) => a.getAttribute("href")), [
+    "https://example.com/a%20b?q=x%20y", "custom://name%20example",
+  ]);
 });
 
 test("malformed links are checked with a base element and left alone without a base", () => {

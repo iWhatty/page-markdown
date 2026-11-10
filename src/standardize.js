@@ -117,7 +117,11 @@ function standardizeLinks(doc, base, stats) {
     }
     if (base && href) {
       try {
-        new URL(href, base);
+        const target = new URL(href, base);
+        // Some browser URL parsers accept percent-encoded spaces in a host.
+        // Special-scheme hosts cannot contain ASCII whitespace or controls.
+        if (/^(?:https?|ftp|wss?):$/.test(target.protocol)
+          && /[\x00-\x20\x7f]/.test(decodeURIComponent(target.hostname))) throw new TypeError("Invalid link host");
       } catch {
         a.replaceWith(...Array.from(a.childNodes));
         stats.invalidLinksUnwrapped += 1;

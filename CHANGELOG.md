@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Malformed web links keep their text without a link even in browsers that accept spaces in hostnames.
 - Table cells with `rowspan="0"` span to the end of their row group, including with `colspan`.
 - Text-only output keeps image alt text without URL fragments from parentheses or titles.
 - Captions survive in single-column, nested and code-bearing tables.
