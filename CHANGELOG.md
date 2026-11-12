@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- AP News photos appeared as code blocks and repeated captions. Images now render as images and matching captions appear once.
 - Malformed web links keep their text without a link even in browsers that accept spaces in hostnames.
 - Table cells with `rowspan="0"` span to the end of their row group, including with `colspan`.
 - Text-only output keeps image alt text without URL fragments from parentheses or titles.

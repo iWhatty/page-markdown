@@ -69,6 +69,10 @@ function hasMeaningfulContent(el) {
  */
 function standardizeImages(doc, base, stats) {
   const squash = (text) => (text || "").replace(/\s+/g, " ").trim();
+  // Turndown keeps the spaces between void <source>s, which indent the image into a code block.
+  for (const picture of Array.from(doc.querySelectorAll("picture"))) {
+    for (const node of Array.from(picture.childNodes)) if (node.nodeType === 3 && !node.nodeValue.trim()) node.remove();
+  }
   for (const element of doc.querySelectorAll("figcaption, .caption")) {
     const caption = squash(element.textContent);
     if (!caption || element.closest(".pswp-caption-content") || isHiddenElement(element)) continue;

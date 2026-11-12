@@ -13,13 +13,29 @@ export const TURNDOWN_OPTIONS = Object.freeze({
   hr: "---",
 });
 
-function linkDestination(node) {
-  const href = node.getAttribute("href").replace(/([()])/g, "\\$1");
+function linkDestination(node, attr = "href") {
+  const href = node.getAttribute(attr).replace(/([()])/g, "\\$1");
   const title = (node.getAttribute("title") || "").replace(/\s*\n+\s*/g, " ").replace(/"/g, '\\"');
   return `${href}${title ? ` "${title}"` : ""}`;
 }
 
+const squash = (text) => (text || "").replace(/\s+/g, " ").trim();
+
+/** The paragraph after an image and its image-only wrappers. */
+function paragraphAfter(img) {
+  let node = img;
+  while (!node.nextElementSibling && node.parentNode?.nodeType === 1 && !squash(node.parentNode.textContent)) node = node.parentNode;
+  const next = node.nextElementSibling;
+  return next?.nodeName === "P" ? next : null;
+}
+
 function gfmInlineRules(turndown) {
+  // An image whose alt text is the paragraph after it (AP News): the caption shows once.
+  turndown.addRule("pmCaptionedImage", {
+    filter: (node) => node.nodeName === "IMG" && Boolean(node.getAttribute("src"))
+      && Boolean(squash(node.getAttribute("alt"))) && squash(node.getAttribute("alt")) === squash(paragraphAfter(node)?.textContent),
+    replacement: (content, node) => `![](${linkDestination(node, "src")})`,
+  });
   // Link text is one line: a link around blocks would otherwise split across lines.
   turndown.addRule("pmInlineLink", {
     filter: (node) => node.nodeName === "A" && Boolean(node.getAttribute("href")),

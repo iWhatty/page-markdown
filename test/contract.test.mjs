@@ -1064,3 +1064,18 @@ test("grid table captions still appear once above the header", () => {
   assert.equal(htmlToMarkdown("<table><caption>A &amp; B</caption><tr><th>Key</th><th>Value</th></tr><tr><td>one</td><td>two</td></tr></table>"),
     "A & B\n\n| Key | Value |\n| --- | --- |\n| one | two |");
 });
+
+test("photo sources do not indent image lines", () => {
+  const { markdown, extraction } = run("regression/indented-photos.html");
+  assert.equal(extraction.method, "readability");
+  assert.match(markdown, /^!\[.*\]\(https:\/\/example\.com\/one\.jpg\)$/m);
+  assert.doesNotMatch(markdown, /^ +!?\[.*\]\(https:\/\/example\.com\/(?:one|two)\.jpg\)/m);
+});
+
+test("plain paragraphs matching photo alt text appear once", () => {
+  const { markdown } = run("regression/indented-photos.html");
+  for (const caption of ["People gather at the meeting.", "A second view of the hall."]) {
+    assert.equal(markdown.split(caption).length - 1, 1, caption);
+  }
+  assert.match(markdown, /!\[\]\(https:\/\/example\.com\/one\.jpg\)/);
+});
