@@ -55,10 +55,38 @@ function mainContentRoot(doc) {
   for (const link of Array.from(root.querySelectorAll("a[href^='#']"))) {
     if (/^\s*skip\b/i.test(link.textContent || "")) link.remove();
   }
-  return root;
+  return removeSkippableBoxes(root);
 }
 
 const withoutSpaces = (text) => text.replace(/\s+/g, "");
+
+// Embedded posts and media sit in a skippable box too, and are part of the text.
+const SKIP_KEPT = "blockquote, iframe, video, audio, pre, table, h1";
+const MAX_END_MARKER_CHARS = 60;
+const MAX_SKIPPED_SHARE = 0.25;
+
+// "Skip Most read and continue reading": a box that opens with a link to the end
+// marker it closes with. The page itself says it interrupts the text (BBC's
+// most-read and podcast boxes), in whatever language.
+function removeSkippableBoxes(root) {
+  const size = (el) => withoutSpaces(el.textContent || "");
+  const total = size(root).length;
+  for (const link of Array.from(root.querySelectorAll("a[href^='#']"))) {
+    const id = link.getAttribute("href").slice(1).replace(/["\\]/g, "\\$&");
+    const label = size(link);
+    if (!id || !label || !root.contains(link)) continue;
+    let box = link.parentElement;
+    let end = null;
+    while (box && box !== root && !(end = box.querySelector(`[id="${id}"]`))) box = box.parentElement;
+    if (!end || end.contains(link) || box.matches("main, article, body")) continue;
+    const marker = size(end);
+    const text = size(box);
+    if (marker && marker.length <= MAX_END_MARKER_CHARS && text.length > label.length + marker.length
+      && text.length <= total * MAX_SKIPPED_SHARE && text.startsWith(label) && text.endsWith(marker)
+      && !box.querySelector(SKIP_KEPT)) box.remove();
+  }
+  return root;
+}
 
 // An article above its comments, where Readability kept the article: what's left
 // without them. null for a thread, where what Readability kept is itself a comment.
@@ -120,6 +148,7 @@ function withoutMisleadingNames(doc) {
   }
   // Readability removes what's aria-hidden, and icons in table cells usually are.
   for (const icon of Array.from(doc.querySelectorAll("td svg[aria-hidden], th svg[aria-hidden]"))) icon.removeAttribute("aria-hidden");
+  if (doc.body) removeSkippableBoxes(doc.body);
   return doc;
 }
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Boxes a page marks as skippable are left out of the article: a box that opens with a
+  link to the end marker it closes with, as BBC's "most read" and podcast boxes do in
+  every language. Boxes holding a quote, embed, code or table stay.
 - Malformed web links keep their text without a link even in browsers that accept spaces in hostnames.
 - Table cells with `rowspan="0"` span to the end of their row group, including with `colspan`.
 - Text-only output keeps image alt text without URL fragments from parentheses or titles.

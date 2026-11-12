@@ -1064,3 +1064,29 @@ test("grid table captions still appear once above the header", () => {
   assert.equal(htmlToMarkdown("<table><caption>A &amp; B</caption><tr><th>Key</th><th>Value</th></tr><tr><td>one</td><td>two</td></tr></table>"),
     "A & B\n\n| Key | Value |\n| --- | --- |\n| one | two |");
 });
+
+const SKIP_PROSE = "<p>Article paragraph with enough words to be kept as the readable text of this page. </p>".repeat(8);
+
+function skipPage(box) {
+  return parseHTML(`<html><head><title>Story</title></head><body><main><h1>Story</h1>${SKIP_PROSE}${box}${SKIP_PROSE}<p>Closing paragraph.</p></main></body></html>`).document;
+}
+
+test("a box the page marks as skippable is left out, in any language", () => {
+  const box = '<section><div><a href="#end-of-box">تخطى الأكثر قراءة وواصل القراءة</a></div><h2>الأكثر قراءة</h2><ul><li><a href="/a">PROMOSTORY one</a></li><li><a href="/b">PROMOSTORY two</a></li></ul><p id="end-of-box">الأكثر قراءة نهاية</p></section>';
+  for (const options of [{}, { minExtractShare: 0 }]) {
+    const { markdown } = pageToMarkdown(skipPage(box), { url: URL_BASE, ...options });
+    assert.doesNotMatch(markdown, /PROMOSTORY|#end-of-box|نهاية/);
+    assert.match(markdown, /Closing paragraph\./);
+  }
+});
+
+test("skippable boxes holding an embedded post, and links to sections, stay", () => {
+  const embed = '<div><a href="#end-of-post">Skip post and continue reading</a><blockquote><p>EMBEDDEDPOST text of the post that the story quotes.</p></blockquote><p id="end-of-post">End of post</p></div>';
+  assert.match(pageToMarkdown(skipPage(embed), { url: URL_BASE }).markdown, /EMBEDDEDPOST/);
+  const section = '<section><a href="#details">Details</a><p>SECTIONTEXT that the link points into, long enough to count as prose here.</p><div id="details"><p>DETAILTEXT is a real part of the page, and much longer than any end marker would ever be.</p></div></section>';
+  const { markdown } = pageToMarkdown(skipPage(section), { url: URL_BASE });
+  assert.match(markdown, /SECTIONTEXT/);
+  assert.match(markdown, /DETAILTEXT/);
+  const heading = '<section><h2 id="part"><a href="#part">PARTHEADING</a></h2></section>';
+  assert.match(pageToMarkdown(skipPage(heading), { url: URL_BASE }).markdown, /PARTHEADING/);
+});
