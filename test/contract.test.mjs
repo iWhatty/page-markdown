@@ -15,11 +15,826 @@ import { parseHTML } from "linkedom";
 import { pageToMarkdown, standardizeDocument } from "../src/index.js";
 import { cleanMarkdown } from "../src/clean.js";
 import { htmlToMarkdown } from "../src/convert.js";
+import { createConcealment, keepPendingOpacity } from "../src/concealed.js";
 import { GOLDEN_OPTIONS, GOLDEN_DIRS } from "./golden-options.mjs";
 
 const FIXTURES = "test/fixtures";
 const URL_BASE = "https://example.com/dir/page";
 const UPDATE = process.env.PAGE_MARKDOWN_UPDATE_GOLDEN === "1";
+
+// Computed styles must come from this source document, never the inert copy
+// or a global browser. Complete defaults model resolved browser values;
+// Text painting properties inherit unless the fixture explicitly overrides them.
+function liveFixture(body, styles = {}) {
+  const { document } = parseHTML(`<html><head></head><body>${body}</body></html>`);
+  const Parser = document.defaultView.DOMParser;
+  Object.defineProperty(document, "defaultView", { value: {
+    DOMParser: Parser,
+    getComputedStyle(el) {
+      assert.equal(el.ownerDocument, document, "computed style uses source view");
+      const ancestor = el.assignedSlot || el.parentElement || el.getRootNode?.().host;
+      const inherited = ancestor ? this.getComputedStyle(ancestor) : { visibility: "visible", fontSize: "16px", color: "rgb(0, 0, 0)", textShadow: "none" };
+      return { display: "block", visibility: inherited.visibility, opacity: "1", fontSize: inherited.fontSize,
+        position: "static", clip: "auto", clipPath: "none", transitionProperty: "all", transitionDuration: "0s",
+        animationName: "none", animationDuration: "0s",
+        color: inherited.color, backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none",
+        backgroundClip: "border-box", textShadow: inherited.textShadow,
+        ...Object.fromEntries(["webkitTextFillColor", "webkitTextStrokeWidth"].filter((field) => field in inherited).map((field) => [field, inherited[field]])),
+        ...styles[el.id] };
+    },
+  } });
+  return document;
+}
+
+const WHITE = "rgb(255, 255, 255)";
+
+for (const [candidate, base, reason] of [
+  ["transparent fill", { webkitTextFillColor: "rgba(0, 0, 0, 0)" }, "transparent_text"],
+  ["same colour", { color: WHITE, backgroundColor: WHITE }, "same_color"],
+]) {
+  for (const [guard, value] of [[null, null], ["backgroundClip", "text"], ["webkitBackgroundClip", "text"],
+    ["textShadow", "rgb(0, 0, 0) 1px 1px 0px"], ["webkitTextStrokeWidth", "1px"]]) {
+    test(`concealed painting candidate ${candidate}, guard ${guard || "none"}`, () => {
+      const text = "PaintingCandidate731";
+      const result = pageToMarkdown(liveFixture(`<p id="s">${text}</p>`, {
+        s: { ...base, ...(guard ? { [guard]: value } : {}) },
+      }), { detectConcealedText: true, extract: "full", includeFullPage: true });
+      assert.equal(result.concealmentCheck, "computed");
+      assert.deepEqual(result.concealedText, guard ? [] : [{ reason, text, chars: text.length }]);
+      for (const key of ["markdown", "fullPageMarkdown"]) assert.equal(result[key].includes(text), !!guard);
+    });
+  }
+}
+
+test("concealed later unread irrelevant throwing properties leave check computed", () => {
+  for (const field of ["transitionDuration", "backgroundClip", "webkitBackgroundClip", "textShadow", "webkitTextStrokeWidth"]) {
+    const doc = liveFixture('<p id="s">UnreadRetain731</p>');
+    const original = doc.defaultView.getComputedStyle;
+    doc.defaultView.getComputedStyle = function(el) {
+      const raw = original.call(this, el);
+      if (el.id === "s") Object.defineProperty(raw, field, { get() { throw new Error("irrelevant"); } });
+      return raw;
+    };
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+    assert.equal(result.concealmentCheck, "computed", `unread ${field}`);
+    assert.match(result.markdown, /UnreadRetain731/);
+    assert.deepEqual(result.concealedText, []);
+  }
+});
+
+test("concealed later consulted empty or throwing values report incomplete and retain text", () => {
+  for (const throws of [false, true]) {
+    const doc = liveFixture('<p id="s">ConsultedRetain731</p>', { s: { color: WHITE, backgroundColor: WHITE } });
+    const original = doc.defaultView.getComputedStyle;
+    doc.defaultView.getComputedStyle = function(el) {
+      const raw = original.call(this, el);
+      if (el.id === "s") Object.defineProperty(raw, "backgroundClip", { get() {
+        if (throws) throw new Error("consulted");
+        return "";
+      } });
+      return raw;
+    };
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+    assert.equal(result.concealmentCheck, "incomplete");
+    assert.match(result.markdown, /ConsultedRetain731/);
+    assert.deepEqual(result.concealedText, []);
+  }
+});
+
+test("concealed capability probe includes otherwise unused properties", () => {
+  for (const field of ["clip", "transitionDuration", "animationDuration", "color", "textShadow", "webkitTextStrokeWidth"]) {
+    const doc = liveFixture('<p>ProbeRetain731</p>', { probe: { [field]: "" } });
+    doc.documentElement.id = "probe";
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+    assert.equal(result.concealmentCheck, "incomplete", `full probe includes ${field}`);
+    assert.match(result.markdown, /ProbeRetain731/);
+    assert.deepEqual(result.concealedText, []);
+  }
+});
+
+test("concealed font size applies to text assigned directly to an empty slot", () => {
+  const text = "DirectSlotFont731";
+  const doc = liveFixture(`<main><x-host id="host">${text}</x-host></main>`, { slot: { fontSize: "0px" } });
+  const host = doc.getElementById("host");
+  const root = host.attachShadow({ mode: "open" });
+  root.innerHTML = '<slot id="slot"></slot>';
+  const slot = root.firstChild;
+  const assigned = host.firstChild;
+  slot.assignedNodes = () => [assigned];
+  Object.defineProperty(assigned, "assignedSlot", { value: slot });
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.deepEqual(result.concealedText, [{ reason: "font_size_zero", text, chars: text.length }]);
+  assert.doesNotMatch(result.markdown, /DirectSlotFont731/);
+});
+
+// Small observations from Chrome 157's owner-run report at 90e2015.
+// Literal computed strings, independent of the gitignored report and CSS stub.
+for (const [label, style, reason] of [
+  ...["rect(0px, 0px, 0px, 0px)", "rect(1px, 1px, 1px, 1px)"].flatMap(clip =>
+    ["absolute", "fixed", "static"].map(position => [`${clip} ${position}`, { clip, position }, position === "static" ? null : "clipped"])),
+  ["circle", { clipPath: "circle(0px)" }, "clipped"],
+  ["shadow", { color: "rgba(1, 2, 3, 0)", textShadow: "rgb(0, 0, 0) 1px 1px 0px" }, null],
+  ["transparent", { color: "rgba(1, 2, 3, 0)" }, "transparent_text"],
+  ["OKLCH", { color: "oklch(1 0 0)", backgroundColor: WHITE }, null],
+  ["Display P3", { color: "color(display-p3 1 1 1)", backgroundColor: WHITE }, null],
+]) {
+  test(`concealed Chrome computed strings: ${label}`, () => {
+    const text = "ChromeObserved731";
+    const result = pageToMarkdown(liveFixture(`<main><p id="s">${text}</p></main>`, { s: style }), { detectConcealedText: true, extract: "full", includeFullPage: true });
+    assert.equal(result.concealmentCheck, "computed");
+    assert.deepEqual(result.concealedText, reason ? [{ reason, text, chars: text.length }] : []);
+    for (const key of ["markdown", "fullPageMarkdown"]) assert.equal(result[key].includes(text), !reason);
+  });
+}
+for (const [label, style, retained] of [
+  ["0.6s transition", { transitionProperty: "opacity", transitionDuration: "0.6s" }, true],
+  ["0.6s animation", { animationName: "reveal", animationDuration: "0.6s" }, true],
+  ["last opacity zero", { transitionProperty: "all, opacity", transitionDuration: "1s, 0s" }, false],
+  ["last all nonzero", { transitionProperty: "opacity, all", transitionDuration: "0s, 1s" }, true],
+  ["duplicate last zero", { transitionProperty: "opacity, opacity", transitionDuration: "1s, 0s" }, false],
+  ["repeat 0.02s", { transitionProperty: "transform, opacity", transitionDuration: "0.02s" }, true],
+  ["excess duration", { transitionProperty: "opacity", transitionDuration: "0s, 1s" }, false],
+]) {
+  test(`concealed Chrome computed durations: ${label}`, () => {
+    const text = "ChromeDuration731";
+    const result = pageToMarkdown(liveFixture(`<main><p id="s">${text}</p></main>`, { s: { opacity: "0", ...style } }), { detectConcealedText: true, extract: "full" });
+    assert.equal(result.concealmentCheck, "computed");
+    assert.equal(result.markdown.includes(text), retained);
+    assert.deepEqual(result.concealedText, retained ? [] : [{ reason: "opacity_zero", text, chars: text.length }]);
+    assert.equal(result.warnings.some(w => w.includes("Pending opacity content retained")), retained);
+  });
+}
+const whitespaceReasons = [
+  ["display_none", { display: "none" }, "A"],
+  ["font_size_zero", { fontSize: "0px" }, "A"],
+  ["visibility_hidden", { visibility: "hidden" }, "B"],
+  ["opacity_zero", { opacity: "0" }, "B"],
+  ["clipped", { clipPath: "inset(50%)" }, "B"],
+  ["transparent_text", { color: "rgba(0, 0, 0, 0)" }, "B"],
+  ["same_color", { color: WHITE, backgroundColor: WHITE }, "B"],
+];
+const whitespaceRows = [
+  ["space", " ", true], ["trailing", "Secret ", true],
+  ["leading", " Secret", true], ["both", " Secret ", true],
+  ["none", "Secret", false], ["internal", "Sec ret", false],
+  ...["\t", "\n", "\u00a0"].flatMap((space, i) => [
+    [`boundary-${i}-leading`, `${space}Secret`, true],
+    [`boundary-${i}-trailing`, `Secret${space}`, true],
+    [`boundary-${i}-only`, space, true],
+  ]),
+  ["utf16", " Secret\u{1f600} ", true],
+  ["truncated-trailing", "S".repeat(2100) + " ", true],
+];
+
+function assertWhitespaceRun(result, reason, raw, expected, entries = result.concealedText) {
+  for (const key of ["markdown", "fullPageMarkdown"]) {
+    assert.equal(result[key].split("\n")[0], expected, `${key} source whitespace`);
+    if (!raw.trim()) assert.doesNotMatch(result[key], /Concealed text omitted/);
+  }
+  assert.deepEqual(entries, raw.trim() ? [{ reason, text: raw.slice(0, 2048), chars: raw.length }] : [], "original run text and UTF-16 count");
+}
+
+for (const [reason, style, group] of whitespaceReasons) {
+  for (const [label, raw, boundary] of whitespaceRows) {
+    for (const form of ["span", "wrapper-own"]) {
+      test(`concealed source whitespace ${group} ${reason} ${label} ${form}`, () => {
+        const separator = group === "B" && boundary ? (raw === "\u00a0" ? raw : " ") : "";
+        const expected = `Hello${separator}world`;
+        let result;
+        if (form === "span") {
+          const doc = liveFixture(`<main>Hello<span id="s">${raw}</span>world</main>`, { s: style });
+          result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+          assertWhitespaceRun(result, reason, raw, expected);
+          assert.equal(result.concealedTextTruncated, raw.length > 2048);
+          const omission = result.omissions.find((o) => o.kind === "concealed_text");
+          assert.equal(omission?.count || 0, raw.trim() ? 1 : 0);
+          assert.equal(omission?.chars || 0, raw.trim() ? raw.length : 0);
+        } else {
+          // Isolate lift's run replacement from provenance: display/opacity/clip
+          // cannot have visible descendant overrides. Only the wrapper's own
+          // text is registered; retained children test its replacement location.
+          const source = liveFixture(`<main id="s">${raw}</main>`, { s: style });
+          const inert = parseHTML('<html><body><main id="s"><span>Hello</span><span>world</span></main></body></html>').document;
+          const wrapper = inert.querySelector("main");
+          const live = source.querySelector("main");
+          const text = inert.createTextNode(raw);
+          wrapper.insertBefore(text, wrapper.lastChild);
+          const concealment = createConcealment(source, true);
+          concealment.copy(live, wrapper);
+          concealment.copy(live.firstChild, text);
+          concealment.lift(inert);
+          assert.equal(wrapper.textContent, group === "B" && !raw.trim() ? `Hello${raw}world` : expected, "wrapper run replacement before normalization");
+          result = pageToMarkdown(inert, { detectConcealedText: true, extract: "full", includeFullPage: true });
+          assertWhitespaceRun(result, reason, raw, expected, concealment.entries);
+          assert.deepEqual(concealment.summary, { count: raw.trim() ? 1 : 0, chars: raw.trim() ? raw.length : 0, truncated: raw.length > 2048 });
+        }
+      });
+    }
+    if (["font_size_zero", "visibility_hidden", "transparent_text", "same_color"].includes(reason)) {
+      test(`concealed source whitespace live wrapper ${reason} ${label}`, () => {
+        const visible = { visibility: "visible", fontSize: "16px", color: "rgb(0, 0, 0)" };
+        const doc = liveFixture(`<main id="s"><span id="a">Hello</span>${raw}<span id="b">world</span></main>`, { s: style, a: visible, b: visible });
+        const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+        const separator = group === "B" && boundary ? (raw === "\u00a0" ? raw : " ") : "";
+        assertWhitespaceRun(result, reason, raw, `Hello${separator}world`);
+      });
+    }
+  }
+  for (const form of ["span", "wrapper-own"]) {
+    test(`concealed source whitespace empty ${reason} ${form}`, () => {
+      const doc = liveFixture(`<main>${form === "span" ? '<span id="s"> \t\n </span>' : '<div id="s"> \t\n </div>'}</main>`, { s: style });
+      const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+      assertWhitespaceRun(result, reason, " \t\n ", "");
+      assert.equal(result.omissions.some((o) => o.kind === "concealed_text"), false);
+      assert.equal(result.concealedTextTruncated, false);
+    });
+    test(`concealed source whitespace combined nodes ${reason} ${form}`, () => {
+      const source = liveFixture('<main id="s"> <span>Sec<span>ret</span></span> </main>', { s: style });
+      const inert = parseHTML(`<html><body><main>${form === "span" ? '<span id="s"></span>' : ""}</main></body></html>`).document;
+      const wrapper = form === "span" ? inert.querySelector("#s") : inert.querySelector("main");
+      const concealment = createConcealment(source, true);
+      function capture(live, clone) {
+        concealment.copy(live, clone);
+        for (const node of live.childNodes) {
+          const child = node.cloneNode(false);
+          clone.append(child);
+          capture(node, child);
+        }
+      }
+      capture(source.querySelector("main"), wrapper);
+      const left = inert.createElement("span");
+      const right = inert.createElement("span");
+      left.textContent = "Hello";
+      right.textContent = "world";
+      if (form === "span") {
+        wrapper.before(left);
+        wrapper.after(right);
+      } else {
+        wrapper.prepend(left);
+        wrapper.append(right);
+      }
+      concealment.lift(inert);
+      const expected = group === "B" ? "Hello world" : "Helloworld";
+      assert.equal(inert.querySelector("main").textContent, expected, "combined raw boundaries leave at most one space");
+      const result = pageToMarkdown(inert, { detectConcealedText: true, extract: "full", includeFullPage: true });
+      assertWhitespaceRun(result, reason, " Secret ", expected, concealment.entries);
+      assert.deepEqual(concealment.summary, { count: 1, chars: 8, truncated: false });
+    });
+  }
+}
+
+for (const form of ["span", "wrapper-own"]) {
+  for (const [label, style, reason, space] of [
+    ["display beats visibility", { display: "none", visibility: "hidden" }, "display_none", ""],
+    ["visibility beats font", { visibility: "hidden", fontSize: "0px" }, "visibility_hidden", " "],
+    ["opacity beats font", { opacity: "0", fontSize: "0px" }, "opacity_zero", " "],
+    ["font beats clip", { fontSize: "0px", clipPath: "inset(50%)" }, "font_size_zero", ""],
+    ["stylesheet display", { display: "none" }, "display_none", ""],
+    ["stylesheet space", { display: "none" }, "display_none", ""],
+    ["inherited visibility", { visibility: "hidden" }, "visibility_hidden", " "],
+    ["nested run", { visibility: "hidden" }, "visibility_hidden", " "],
+  ]) {
+    // Only visibility has a wrapper form of its own; the rest would repeat the span fixture.
+    if (form === "wrapper-own" && reason !== "visibility_hidden") continue;
+    test(`concealed source whitespace ${label} ${form}`, () => {
+      const nested = label === "nested run";
+      const run = nested ? ' <span>Sec<span>ret</span></span> ' : label === "stylesheet space" ? " " : "Secret ";
+      const raw = nested ? " Secret " : run;
+      const child = { visibility: "visible", fontSize: "16px" };
+      // Whole-wrapper integration is possible for visibility's local override.
+      const own = form === "wrapper-own" && reason === "visibility_hidden";
+      const body = own
+        ? `<main id="s"><span id="a">Hello</span>${run}<span id="b">world</span></main>`
+        : `<main>Hello<span id="s">${label === "inherited visibility" ? `<span>${run}</span>` : run}</span>world</main>`;
+      const doc = liveFixture(body, { s: style, a: child, b: child });
+      if (label.startsWith("stylesheet")) doc.head.innerHTML = '<style>#s { display: none; }</style>';
+      const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+      assertWhitespaceRun(result, reason, raw, `Hello${space}world`);
+    });
+  }
+  test(`concealed source whitespace adjacent runs ${form}`, () => {
+    const body = form === "span"
+      ? '<main>Hello <span id="s">Secret </span><span id="t"> Other</span> world</main>'
+      : '<main id="s"><span id="a">Hello </span>Secret <span id="t"> Other</span><span id="b"> world</span></main>';
+    const doc = liveFixture(body, { s: { visibility: "hidden" }, t: { color: "rgba(0, 0, 0, 0)", visibility: "visible" }, a: { visibility: "visible" }, b: { visibility: "visible" } });
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+    for (const output of [result.markdown, result.fullPageMarkdown]) assert.equal(output.split("\n")[0], "Hello world", "adjacent separators normalize");
+    assert.deepEqual(result.concealedText, [
+      { reason: "visibility_hidden", text: "Secret ", chars: 7 },
+      { reason: "transparent_text", text: " Other", chars: 6 },
+    ]);
+    assert.equal(result.omissions.find((o) => o.kind === "concealed_text").chars, 13);
+  });
+}
+
+for (const [label, wrapper, child] of [
+  ["white-on-white", { color: WHITE, backgroundColor: WHITE }, { color: "rgb(0, 0, 0)" }],
+  ["visibility-hidden", { visibility: "hidden" }, { visibility: "visible" }],
+]) {
+  test(`concealed whitespace-only ${label} wrapper`, async (t) => {
+    const doc = liveFixture('<main><div id="wrapper"> \n <p id="child">VisibleWhitespaceChild1270</p> \t </div></main>', { wrapper, child });
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+    await t.test("visible child retained in both outputs", () => {
+      assert.match(result.markdown, /VisibleWhitespaceChild1270/);
+      assert.match(result.fullPageMarkdown, /VisibleWhitespaceChild1270/);
+    });
+    await t.test("no entries", () => assert.deepEqual(result.concealedText, []));
+    await t.test("no omission", () => assert.equal(result.omissions.some((o) => o.kind === "concealed_text"), false));
+    await t.test("no Markdown notice", () => assert.doesNotMatch(result.markdown, /Concealed text omitted/));
+    await t.test("no full-page notice", () => assert.doesNotMatch(result.fullPageMarkdown, /Concealed text omitted/));
+  });
+  test(`concealed whitespace-only ${label} inline siblings`, async (t) => {
+    const doc = liveFixture('<main><div id="wrapper"><span id="first">Hello</span> <span id="second">world</span></div></main>', { wrapper, first: child, second: child });
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+    await t.test("Markdown retains inline spacing", () => assert.match(result.markdown, /Hello world/));
+    await t.test("full-page retains inline spacing", () => assert.match(result.fullPageMarkdown, /Hello world/));
+    await t.test("no entries", () => assert.deepEqual(result.concealedText, []));
+    await t.test("no omission", () => assert.equal(result.omissions.some((o) => o.kind === "concealed_text"), false));
+    await t.test("not truncated", () => {
+      assert.equal(result.concealedTextTruncated, false);
+      assert.doesNotMatch(result.warnings.join(), /Concealed text report truncated/);
+    });
+    await t.test("no Markdown notice", () => assert.doesNotMatch(result.markdown, /Concealed text omitted/));
+    await t.test("no full-page notice", () => assert.doesNotMatch(result.fullPageMarkdown, /Concealed text omitted/));
+  });
+}
+
+for (const [label, inherited, reason] of [
+  ["fill", { color: WHITE, webkitTextFillColor: "rgba(0, 0, 0, 0)" }, "transparent_text"],
+  ["shadow", { color: "rgba(0, 0, 0, 0)", textShadow: "rgb(0, 0, 0) 1px 1px 0px" }, null],
+  ["stroke", { color: "rgba(0, 0, 0, 0)", webkitTextStrokeWidth: "1px" }, null],
+]) {
+  test(`concealed colour inherited ${label}`, () => {
+    const doc = liveFixture('<main id="outer"><p>InheritedPaint1271</p></main>', { outer: inherited });
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+    assert.deepEqual(result.concealedText, reason ? [{ reason, chars: 18, text: "InheritedPaint1271" }] : []);
+    for (const output of [result.markdown, result.fullPageMarkdown]) assert.equal(output.includes("InheritedPaint1271"), !reason);
+  });
+}
+
+for (const reason of ["same_color", "transparent_text"]) {
+  for (const kind of ["tab", "answer", "code"]) {
+    test(`concealed colour ${reason} inside ${kind} exception`, () => {
+      const inner = 'ExceptionRetained1272<span id="colour">ColourException1273</span>';
+      const body = kind === "tab"
+        ? `<div role="tablist"><button role="tab" aria-controls="wrapper">ColourTab1274</button><button role="tab" aria-controls="other">Other tab</button></div><div role="tabpanel" id="wrapper">${inner}</div><div role="tabpanel" id="other">Other content</div>`
+        : `<button>Show answer</button><div id="wrapper" hidden>${kind === "code" ? `<pre><code>${inner}</code></pre>` : inner}</div>`;
+      const doc = liveFixture(`<main id="outer">${body}</main>`, {
+        outer: { backgroundColor: WHITE }, wrapper: { display: "none" },
+        colour: { color: reason === "same_color" ? WHITE : "rgba(0, 0, 0, 0)" },
+      });
+      const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+      assert.deepEqual(result.concealedText, [{ reason, chars: 19, text: "ColourException1273" }], "exception does not clear colour reason");
+      for (const output of [result.markdown, result.fullPageMarkdown]) {
+        assert.match(output, /ExceptionRetained1272/, "colour reason does not clear exception");
+        assert.doesNotMatch(output, /ColourException1273/);
+      }
+      if (kind === "tab") assert.match(result.markdown, /ColourTab1274/);
+    });
+  }
+}
+
+const colourCases = [
+  ["alpha-zero", { color: "rgba(1, 2, 3, 0)" }, "transparent_text"],
+  ["alpha-decimal", { color: "rgba(1, 2, 3, 0.0)" }, "transparent_text"],
+  ["alpha-percent", { color: "rgb(1 2 3 / 0%)" }, "transparent_text"],
+  ["own-white", { color: WHITE, backgroundColor: WHITE }, "same_color"],
+  ["space-rgb", { color: "rgb(255 255 255)" }, "same_color"],
+  ["space-alpha", { color: "rgb(255 255 255 / 100%)" }, "same_color"],
+  ["ancestor-white", { color: WHITE }, "same_color"],
+  ["near-white", { color: "rgb(254, 255, 255)" }, null],
+  ["no-opaque", { color: WHITE }, null, {}],
+  ["translucent", { color: WHITE, backgroundColor: "rgba(255, 255, 255, 0.5)" }, null],
+  ["image", { color: WHITE, backgroundImage: "url(example.png)" }, null],
+  ["unknown-colour", { color: "color(srgb 1 1 1)" }, null],
+  ["unknown-background", { color: WHITE, backgroundColor: "oklch(1 0 0)" }, null],
+  ["gradient", { color: "rgba(0, 0, 0, 0)", backgroundClip: "text", backgroundImage: "linear-gradient(red, blue)" }, null],
+  ["webkit-clip", { color: "rgba(0, 0, 0, 0)", webkitBackgroundClip: "text" }, null],
+  ["visible-fill", { color: "rgba(0, 0, 0, 0)", webkitTextFillColor: "rgb(1, 2, 3)" }, null],
+  ["transparent-fill", { color: WHITE, webkitTextFillColor: "rgba(0, 0, 0, 0)" }, "transparent_text"],
+  ["matching-fill", { color: WHITE, webkitTextFillColor: WHITE }, "same_color"],
+  ["shadow", { color: "rgba(0, 0, 0, 0)", textShadow: "rgb(0, 0, 0) 1px 1px 0px" }, null],
+  ["stroke", { color: "rgba(0, 0, 0, 0)", webkitTextStrokeWidth: "1px" }, null],
+  ["zero-stroke", { color: WHITE, webkitTextStrokeWidth: "0px" }, "same_color"],
+];
+for (const [i, [label, style, reason, outer = { backgroundColor: WHITE }]] of colourCases.entries()) {
+  test(`concealed colour ${label}`, () => {
+    const sentinel = `ColourSentinel${1200 + i}`;
+    const doc = liveFixture(`<main id="outer"><p id="s">${sentinel}</p></main>`, { outer, s: style });
+    const off = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+    assert.ok(off.markdown.includes(sentinel), `${label} opt-out retains text`);
+    assert.deepEqual(off.concealedText, []);
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+    assert.deepEqual({ retained: result.markdown.includes(sentinel), full: result.fullPageMarkdown.includes(sentinel), entries: result.concealedText },
+      { retained: !reason, full: !reason, entries: reason ? [{ reason, chars: sentinel.length, text: sentinel }] : [] }, `${label} text and colour counts`);
+    assert.equal(result.concealmentCheck, "computed");
+  });
+}
+
+test("concealed colour child override and precedence", () => {
+  const doc = liveFixture('<main id="outer"><div id="parent">ColourParent1250<p id="child">ColourChild1251</p></div><p id="both">ColourPrecedence1252</p></main>', {
+    outer: { backgroundColor: WHITE }, parent: { color: WHITE }, child: { color: "rgb(0, 0, 0)" }, both: { color: WHITE, fontSize: "0px" },
+  });
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.match(result.markdown, /ColourChild1251/);
+  assert.deepEqual(result.concealedText.map(({ reason, text }) => [reason, text]), [["same_color", "ColourParent1250"], ["font_size_zero", "ColourPrecedence1252"]]);
+});
+
+test("concealed colour capability, static input and optional browser properties", () => {
+  for (const field of ["color", "backgroundColor", "backgroundImage", "backgroundClip", "textShadow", "webkitBackgroundClip", "webkitTextFillColor", "webkitTextStrokeWidth"]) {
+    const doc = liveFixture('<main id="s">MissingColour1253</main>', { s: { color: WHITE, backgroundColor: WHITE, [field]: "" } });
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+    assert.equal(result.concealmentCheck, "incomplete", `missing ${field} capability`);
+    assert.deepEqual(result.concealedText, [], `missing ${field} never matches`);
+    assert.match(result.markdown, /MissingColour1253/);
+  }
+  const doc = parseHTML('<html><body><p style="color:transparent;background-color:white">StaticColour1254</p></body></html>').document;
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.equal(result.concealmentCheck, "static-only");
+  assert.equal(result.markdown, pageToMarkdown(doc, { extract: "full", detectConcealedText: false }).markdown);
+});
+
+test("concealed colour ancestor barriers and own background priority", () => {
+  for (const barrier of [{ backgroundColor: "rgba(1, 2, 3, 0.5)" }, { backgroundImage: "url(layer.png)" }, { backgroundColor: "lab(100 0 0)" }]) {
+    const doc = liveFixture('<main id="outer"><div id="layer"><p id="unknown">AncestorUnknown1255</p><p id="own">OwnOpaque1256</p></div></main>', {
+      outer: { backgroundColor: WHITE }, layer: barrier, unknown: { color: WHITE }, own: { color: WHITE, backgroundColor: WHITE },
+    });
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+    assert.match(result.markdown, /AncestorUnknown1255/);
+    assert.deepEqual(result.concealedText.map((e) => e.text), ["OwnOpaque1256"]);
+  }
+});
+
+test("concealed colour resolves external root, slots and shadow hosts", () => {
+  const doc = liveFixture('<main id="outer"><x-host id="host"><p id="assigned">ColourSlot1257</p></x-host></main>', {
+    outer: { backgroundColor: WHITE }, assigned: { color: WHITE }, shadow: { color: WHITE },
+  });
+  const host = doc.getElementById("host");
+  const root = doc.createDocumentFragment();
+  root.host = host;
+  const slot = doc.createElement("slot");
+  slot.assignedNodes = () => [doc.getElementById("assigned")];
+  Object.defineProperty(doc.getElementById("assigned"), "assignedSlot", { value: slot });
+  const shadow = doc.createElement("p");
+  shadow.id = "shadow";
+  shadow.textContent = "ColourShadow1258";
+  root.append(slot, shadow);
+  Object.defineProperty(host, "shadowRoot", { value: root });
+  const result = pageToMarkdown(host, { detectConcealedText: true, extract: "full" });
+  assert.deepEqual(result.concealedText.map((e) => e.text), ["ColourSlot1257", "ColourShadow1258"]);
+});
+
+for (const [c, clip] of ["rect(1px, 4px, 1px, 2px)", "rect(1px 4px 3px 4px)"].entries()) {
+  for (const [p, position] of ["static", "relative", "absolute", "fixed"].entries()) {
+    test(`concealed empty nonzero rect ${clip} ${position}`, () => {
+      const result = pageToMarkdown(liveFixture(`<p id="s">NonzeroRect${1260 + 4 * c + p}</p>`, { s: { clip, position } }), { detectConcealedText: true, extract: "full" });
+      assert.equal(result.concealedText.length, ["absolute", "fixed"].includes(position) ? 1 : 0, "empty rect positioning and area");
+    });
+  }
+}
+
+for (const [reason, style] of Object.entries({
+  display_none: { display: "none" }, visibility_hidden: { visibility: "hidden" },
+  opacity_zero: { opacity: "0" }, font_size_zero: { fontSize: "0px" },
+  clipped: { clipPath: "inset(50%)" },
+})) {
+  test(`concealed ${reason}: source style, baseline and both outputs`, () => {
+    const sentinel = `Sentinel${reason.replaceAll("_", "")}731`;
+    const doc = liveFixture(`<main><p>Visible article paragraph.</p><p id="secret">${sentinel}</p></main>`, { secret: style });
+    const baseline = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+    assert.equal(baseline.extraction.method, "full_page");
+    assert.ok(baseline.markdown.includes(sentinel), "pre-change full output retains sentinel");
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true });
+    assert.ok(!result.markdown.includes(sentinel), "concealed sentinel leaves Markdown");
+    assert.ok(!result.fullPageMarkdown.includes(sentinel));
+    assert.deepEqual(result.concealedText, [{ reason, chars: sentinel.length, text: sentinel }]);
+    assert.equal(result.concealmentCheck, "computed");
+    assert.match(result.markdown, /Concealed text omitted/);
+    assert.match(result.fullPageMarkdown, /Concealed text omitted/);
+  });
+}
+
+test("concealed spoof control: planted private mark retains text and zero counts", () => {
+  const doc = liveFixture('<main><p data-page-markdown-concealed="display_none">SpoofRetain827</p></main>');
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.deepEqual({ retained: result.markdown.includes("SpoofRetain827"), entries: result.concealedText,
+    count: result.omissions.find((o) => o.kind === "concealed_text")?.count || 0 },
+  { retained: true, entries: [], count: 0 }, "spoof retained text and zero concealment counts");
+});
+
+test("concealed ordering control: short stylesheet tab label content and counts", () => {
+  const doc = liveFixture('<main><div role="tablist"><button role="tab" aria-controls="one">TabLabel921</button><button role="tab" aria-controls="two">TabTwo921</button></div><div role="tabpanel" id="one">TabContent921</div><div role="tabpanel" id="two">Other panel</div></main>', { one: { display: "none" } });
+  const baseline = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+  assert.match(baseline.markdown, /TabLabel921/);
+  assert.match(baseline.markdown, /TabContent921/);
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.deepEqual({ label: result.markdown.includes("TabLabel921"), content: result.markdown.includes("TabContent921"),
+    entries: result.concealedText, count: result.omissions.find((o) => o.kind === "concealed_text")?.count || 0 },
+  { label: true, content: true, entries: [], count: 0 }, "ordering short tab label content and counts");
+});
+
+test("concealed transforms lift code spans, note asides, links and tab labels first", () => {
+  const doc = liveFixture('<main><pre><code>CodeVisible <span id="code">CodeSecret314</span></code></pre><aside class="note" id="aside">AsideSecret315</aside><a href="javascript:x" id="link">LinkSecret316</a><div role="tablist"><button role="tab" aria-controls="a"><span id="label">LabelSecret317</span></button><button role="tab" aria-controls="b">Other318</button></div><div role="tabpanel" id="a">PanelVisible319</div><div role="tabpanel" id="b">Other visible</div></main>',
+    Object.fromEntries(["code", "aside", "link", "label"].map((id) => [id, { opacity: "0" }])));
+  const baseline = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+  for (const word of ["CodeSecret314", "AsideSecret315", "LinkSecret316", "LabelSecret317"]) assert.ok(baseline.markdown.includes(word));
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full", includeFullPage: true, pageFacts: true });
+  for (const word of ["CodeSecret314", "AsideSecret315", "LinkSecret316", "LabelSecret317"]) {
+    assert.ok(!result.markdown.includes(word));
+    assert.ok(result.concealedText.some((e) => e.text === word));
+  }
+  assert.match(result.markdown, /CodeVisible/);
+  assert.match(result.markdown, /PanelVisible319/);
+  assert.equal(result.omissions.find((o) => o.kind === "concealed_text").count, 4);
+});
+
+test("concealed descendants override visibility and font size, never display or opacity", () => {
+  const doc = liveFixture('<main><div id="v">InheritedSecret401<span id="inherited">InheritedSecret402</span><p id="shown">ShownChild403</p></div><div id="f">FontSecret404<p id="fontShown">FontOverride405</p></div><div id="d"><p>DisplaySecret406</p></div><div id="o"><p>OpacitySecret407</p></div></main>', {
+    v: { visibility: "hidden" }, shown: { visibility: "visible" }, f: { fontSize: "0px" }, fontShown: { fontSize: "16px" },
+    d: { display: "none" }, o: { opacity: "0" },
+  });
+  const baseline = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+  for (const word of ["InheritedSecret401", "InheritedSecret402", "ShownChild403", "FontSecret404", "FontOverride405", "DisplaySecret406", "OpacitySecret407"]) assert.ok(baseline.markdown.includes(word));
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.match(result.markdown, /ShownChild403/);
+  assert.match(result.markdown, /FontOverride405/);
+  assert.doesNotMatch(result.markdown, /Secret40[12467]/);
+  assert.equal(result.concealedText.reduce((n, e) => n + e.chars, 0), result.omissions[0].chars);
+});
+
+test("concealed Element capture includes ancestors outside root", () => {
+  const doc = liveFixture('<main id="outer"><p id="root">ExternalAncestor501</p></main>', { outer: { opacity: "0" } });
+  assert.match(pageToMarkdown(doc.getElementById("root"), { extract: "full", detectConcealedText: false }).markdown, /ExternalAncestor501/);
+  const result = pageToMarkdown(doc.getElementById("root"), { detectConcealedText: true, extract: "full" });
+  assert.doesNotMatch(result.markdown, /ExternalAncestor501/);
+  assert.equal(result.concealedText[0].reason, "opacity_zero");
+});
+
+test("concealed shadow hosts and assigned slot ancestors", () => {
+  const doc = liveFixture('<main><x-host id="host"><p id="assigned">SlotSecret601</p></x-host></main>', { slot: { opacity: "0" } });
+  const host = doc.getElementById("host");
+  const root = doc.createDocumentFragment();
+  root.host = host;
+  const slot = doc.createElement("slot");
+  slot.id = "slot";
+  slot.assignedNodes = () => [doc.getElementById("assigned")];
+  Object.defineProperty(doc.getElementById("assigned"), "assignedSlot", { value: slot });
+  root.append(slot);
+  Object.defineProperty(host, "shadowRoot", { value: root });
+  assert.match(pageToMarkdown(doc, { extract: "full", detectConcealedText: false }).markdown, /SlotSecret601/);
+  let result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.equal(result.concealedText[0].text, "SlotSecret601");
+  slot.id = "visibleSlot";
+  host.id = "slot";
+  result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.equal(result.concealedText[0].reason, "opacity_zero");
+});
+
+test("concealed caps use UTF-16, nested deduplication and uncapped totals", () => {
+  const blocks = Array.from({ length: 105 }, (_, i) => `<p id="s${i}">${i === 0 ? "😀".repeat(2000) : "C".repeat(300)}<span>Tail</span></p>`).join("");
+  const doc = liveFixture(`<main>${blocks}</main>`, Object.fromEntries(Array.from({ length: 105 }, (_, i) => [`s${i}`, { opacity: "0", display: "none" }])));
+  const baseline = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+  assert.equal((baseline.markdown.match(/Tail/g) || []).length, 105);
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.equal(result.concealedText.length, 100);
+  assert.equal(result.concealedText[0].text.length, 2048);
+  assert.equal(result.concealedText[0].chars, 4004);
+  assert.equal(result.concealedText.reduce((n, e) => n + e.text.length, 0), 16384);
+  assert.ok(result.concealedText.every((e) => e.reason === "display_none"));
+  assert.equal(result.omissions[0].count, 105);
+  assert.equal(result.omissions[0].chars, 4004 + 104 * 304);
+  assert.equal(result.concealedTextTruncated, true);
+  assert.match(result.warnings.join(), /report truncated/);
+});
+
+test("concealed states, opt-out, partial failure and custom extractor marks", () => {
+  const staticDoc = parseHTML('<html><body><p>StaticSentinel701</p></body></html>').document;
+  const staticResult = pageToMarkdown(staticDoc, { detectConcealedText: true, extract: "full" });
+  assert.equal(staticResult.concealmentCheck, "static-only");
+  assert.equal(staticResult.markdown, pageToMarkdown(staticDoc, { extract: "full", detectConcealedText: false }).markdown);
+  const doc = liveFixture('<main><p id="s">DisabledSentinel702</p><p>Visible703</p></main>', { s: { display: "none" } });
+  const off = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+  assert.equal(off.concealmentCheck, "disabled");
+  assert.match(off.markdown, /DisabledSentinel702/);
+  assert.deepEqual(off.concealedText, []);
+  pageToMarkdown(doc, { detectConcealedText: true, minExtractChars: 0, extract(inert) {
+    assert.equal(inert.querySelectorAll("[data-page-markdown-concealed]").length, 0);
+    assert.equal(inert.querySelector("#s").textContent, "");
+    return { html: inert.body.innerHTML, method: "custom" };
+  } });
+  const partial = liveFixture('<p id="s">PartialSecret704</p>', { s: { display: "", visibility: "", opacity: "", fontSize: "", clip: "", clipPath: "" } });
+  const result = pageToMarkdown(partial, { detectConcealedText: true, extract: "full" });
+  assert.equal(result.concealmentCheck, "incomplete");
+  assert.match(result.markdown, /PartialSecret704/);
+  assert.deepEqual(result.concealedText, []);
+  partial.defaultView.getComputedStyle = () => { throw new Error("unavailable"); };
+  assert.equal(pageToMarkdown(partial, { detectConcealedText: true }).concealmentCheck, "incomplete");
+});
+
+test("concealed provisional opacity policy tests both decisions", () => {
+  const doc = liveFixture('<p id="pending">PendingOpacity801</p><p id="fixed">FixedOpacity802</p>', {
+    pending: { opacity: "0", transitionProperty: "opacity", transitionDuration: "0.3s" }, fixed: { opacity: "0" },
+  });
+  const baseline = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+  assert.match(baseline.markdown, /PendingOpacity801/);
+  assert.match(baseline.markdown, /FixedOpacity802/);
+  const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+  assert.match(result.markdown, /PendingOpacity801/);
+  assert.doesNotMatch(result.markdown, /FixedOpacity802/);
+  assert.match(result.warnings.join(), /retained in 1 element/);
+});
+
+for (const [label, overrides, pending] of [
+  ["defaults", {}, false],
+  ["all 0s", { transitionProperty: "all", transitionDuration: "0s" }, false],
+  ["opacity seconds", { transitionProperty: "opacity", transitionDuration: "0.3s" }, true],
+  ["all milliseconds", { transitionDuration: "200ms" }, true],
+  ["non-opacity duration only", { transitionProperty: "transform, opacity", transitionDuration: "300ms, 0s" }, false],
+  ["repeated transition duration", { transitionProperty: "transform, opacity", transitionDuration: "20ms" }, true],
+  ["excess transition durations", { transitionProperty: "opacity", transitionDuration: "0s, 1s" }, false],
+  ["all then zero opacity", { transitionProperty: "all, opacity", transitionDuration: "1s, 0s" }, false],
+  ["opacity then nonzero all", { transitionProperty: "opacity, all", transitionDuration: "0s, 1s" }, true],
+  ["duplicate opacity last zero", { transitionProperty: "opacity, opacity", transitionDuration: "1s, 0s" }, false],
+  ["zero named animation", { animationName: "reveal" }, false],
+  ["named animation seconds", { animationName: "reveal", animationDuration: "0.2s" }, true],
+  ["none animation duration only", { animationName: "none, reveal", animationDuration: "1s, 0ms" }, false],
+  ["repeated animation duration", { animationName: "none, reveal", animationDuration: "30ms" }, true],
+]) {
+  test(`concealed opacity durations: ${label}`, () => {
+    const style = { opacity: "0", transitionProperty: "all", transitionDuration: "0s", animationName: "none", animationDuration: "0s", ...overrides };
+    assert.equal(keepPendingOpacity(style), pending, label);
+    const result = pageToMarkdown(liveFixture('<p id="s">DurationSentinel803</p>', { s: style }), { detectConcealedText: true, extract: "full" });
+    assert.equal(result.markdown.includes("DurationSentinel803"), pending);
+    assert.equal(result.concealedText.length, pending ? 0 : 1);
+  });
+}
+
+test("concealed inline visibility preserves prior Readability answer and code exclusions", () => {
+  const prose = "Readable article content with enough detail to survive extraction. ".repeat(18);
+  const doc = liveFixture(`<main><article><h1>Visibility regression</h1><p>${prose}</p><button>Answer</button><div id="answer" style="visibility:hidden">AbsentAnswer804 ${prose}</div><div id="code" style="visibility:hidden"><pre id="pre">AbsentCode805</pre></div></article></main>`, {
+    answer: { visibility: "hidden" }, code: { visibility: "hidden" }, pre: { visibility: "hidden" },
+  });
+  for (const detectConcealedText of [false, true]) {
+    const result = pageToMarkdown(doc, { detectConcealedText });
+    assert.equal(result.extraction.method, "readability");
+    assert.deepEqual(result.concealedText, []);
+    assert.doesNotMatch(result.markdown, /AbsentAnswer804|AbsentCode805/, "prior Readability exclusions stay absent");
+  }
+});
+
+test("concealed inline visibility retains a visible descendant override", () => {
+  const doc = liveFixture('<main><div id="hidden" style="visibility:hidden">HiddenInline806<p id="shown" style="visibility:visible">VisibleOverride807</p></div></main>', { hidden: { visibility: "hidden" }, shown: { visibility: "visible" } });
+  for (const extract of ["full", "readable"]) {
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract });
+    assert.match(result.markdown, /VisibleOverride807/);
+    assert.doesNotMatch(result.markdown, /HiddenInline806/);
+    assert.equal(result.concealedText[0].reason, "visibility_hidden");
+  }
+});
+
+for (const kind of ["answer", "code"]) {
+  test(`concealed inline visibility preserves Readability ${kind} exclusion with visible child`, () => {
+    const prose = "Readable article content with enough detail to survive extraction. ".repeat(18);
+    const hidden = kind === "answer" ? `AbsentCombined810 ${prose}` : '<pre id="pre">AbsentCombined810</pre>';
+    const doc = liveFixture(`<main><article><h1>Combined visibility</h1><p>${prose}</p><button>Show</button><div id="wrapper" style="visibility:hidden">${hidden}<p id="shown" style="visibility:visible">VisibleCombined811</p></div></article></main>`, {
+      wrapper: { visibility: "hidden" }, pre: { visibility: "hidden" }, shown: { visibility: "visible" },
+    });
+    for (const detectConcealedText of [false, true]) {
+      const result = pageToMarkdown(doc, { detectConcealedText });
+      assert.equal(result.extraction.method, "readability");
+      assert.deepEqual(result.concealedText, []);
+      assert.equal(result.omissions.find((o) => o.kind === "concealed_text")?.count || 0, 0);
+      assert.doesNotMatch(result.markdown, /AbsentCombined810/, "combined prior Readability exclusion stays absent");
+    }
+  });
+}
+
+for (const position of ["static", "relative", "absolute", "fixed"]) {
+  test(`concealed legacy clip applicability: ${position}`, () => {
+    const result = pageToMarkdown(liveFixture('<p id="s">PositionClip808</p>', { s: { position, clip: "rect(0px, 0px, 0px, 0px)" } }), { detectConcealedText: true, extract: "full" });
+    const hidden = ["absolute", "fixed"].includes(position);
+    assert.equal(result.markdown.includes("PositionClip808"), !hidden, "legacy clip requires absolute or fixed positioning");
+    assert.equal(result.concealedText.length, hidden ? 1 : 0);
+    const path = pageToMarkdown(liveFixture('<p id="s">PathClip809</p>', { s: { position, clipPath: "inset(50%)" } }), { detectConcealedText: true, extract: "full" });
+    assert.equal(path.concealedText[0].reason, "clipped", "clip-path applies regardless of positioning");
+  });
+}
+
+test("concealed clipping patterns, unknown values and source purity", () => {
+  const cases = [
+    [{ position: "absolute", clip: "rect(0px, 0px, 0px, 0px)" }, true],
+    [{ position: "fixed", clip: "rect(0 0 0 0)" }, true],
+    [{ clipPath: "circle(0px at 50% 50%)" }, true],
+    [{ clipPath: "circle(0%)" }, true],
+    [{ clipPath: "inset(50%)" }, true],
+    [{ clip: "rect(0px, 10px, 10px, 0px)" }, false],
+    [{ clipPath: "inset(49%)" }, false],
+    [{ clipPath: "polygon(0 0, 0 0, 0 0)", opacity: "unknown", fontSize: "unknown", visibility: "unknown" }, false],
+  ];
+  for (const [style, hidden] of cases) {
+    const doc = liveFixture('<main><p id="s">ClipSentinel1001</p></main>', { s: style });
+    const original = doc.documentElement.outerHTML;
+    assert.match(pageToMarkdown(doc, { extract: "full", detectConcealedText: false }).markdown, /ClipSentinel1001/);
+    const result = pageToMarkdown(doc, { detectConcealedText: true, extract: "full" });
+    assert.equal(result.markdown.includes("ClipSentinel1001"), !hidden);
+    assert.equal(result.concealedText.length, hidden ? 1 : 0);
+    assert.equal(doc.documentElement.outerHTML, original, "source tree stays byte-identical");
+  }
+});
+
+test("concealed private marks stripped in shadow, slots and template contents", () => {
+  const doc = liveFixture('<main><x-host id="host"><p data-page-markdown-concealed="display_none">SlotSpoof1101</p></x-host><template><p data-page-markdown-concealed="opacity_zero">TemplateSpoof1102</p></template></main>');
+  const host = doc.getElementById("host");
+  const root = doc.createDocumentFragment();
+  root.host = host;
+  const slot = doc.createElement("slot");
+  slot.assignedNodes = () => Array.from(host.childNodes);
+  const p = doc.createElement("p");
+  p.setAttribute("data-page-markdown-concealed", "display_none");
+  p.textContent = "ShadowSpoof1103";
+  root.append(slot, p);
+  Object.defineProperty(host, "shadowRoot", { value: root });
+  const baseline = pageToMarkdown(doc, { extract: "full", detectConcealedText: false });
+  assert.match(baseline.markdown, /SlotSpoof1101/);
+  assert.match(baseline.markdown, /ShadowSpoof1103/);
+  const result = pageToMarkdown(doc, { detectConcealedText: true, minExtractChars: 0, extract(inert) {
+    assert.equal(inert.querySelectorAll("[data-page-markdown-concealed]").length, 0);
+    assert.equal(inert.querySelector("template").content.querySelectorAll("[data-page-markdown-concealed]").length, 0);
+    return { html: inert.body.innerHTML, method: "custom" };
+  } });
+  assert.deepEqual(result.concealedText, []);
+  assert.match(result.markdown, /SlotSpoof1101/);
+  assert.match(result.markdown, /ShadowSpoof1103/);
+});
+
+for (const extractionMode of ["full", "readable", "main_content"]) {
+  for (const property of ["display", "visibility"]) {
+    test(`concealed exceptions ${property} across ${extractionMode}`, () => {
+      const prose = "Readable article content with enough detail to survive extraction. ".repeat(18);
+      const body = extractionMode === "main_content"
+        ? load("regression/link-grid.html").body.innerHTML
+        : `<main><article><h1>Exception matrix</h1><p>${prose}</p></article></main>`;
+      const doc = liveFixture(body, {
+        short: { [property]: property === "display" ? "none" : "hidden" },
+        long: { [property]: property === "display" ? "none" : "hidden" },
+        answer: { [property]: property === "display" ? "none" : "hidden" },
+        codewrap: { [property]: property === "display" ? "none" : "hidden" },
+        independent: { opacity: "0", visibility: property === "visibility" ? "hidden" : "visible" },
+        inherited: { visibility: property === "visibility" ? "hidden" : "visible" },
+        prechild: { visibility: property === "visibility" ? "hidden" : "visible" },
+        codechild: { visibility: property === "visibility" ? "hidden" : "visible" },
+      });
+      const main = doc.querySelector("main");
+      if (extractionMode === "main_content") {
+        const grid = main.querySelector("ul");
+        for (let i = 0; i < 20; i += 1) main.append(grid.cloneNode(true));
+      }
+      const extra = doc.createElement("section");
+      extra.innerHTML = `<div role="tablist"><button role="tab" aria-controls="short">ShortLabel911</button><button role="tab" aria-controls="long">LongLabel912</button></div><div role="tabpanel" id="short">ShortContent913<span id="inherited">InheritedContent914</span><span id="independent">IndependentSecret915</span></div><div role="tabpanel" id="long">LongContent916 ${prose.repeat(6)}</div><button>Show answer</button><div id="answer">AnswerContent917 ${prose}</div><div id="codewrap"><pre id="prechild"><code id="codechild">CodeContent918</code></pre></div>`;
+      main.append(extra);
+      const options = { extract: extractionMode === "full" ? "full" : "readable", includeFullPage: true };
+      const baseline = pageToMarkdown(doc, { ...options, detectConcealedText: false });
+      assert.equal(baseline.extraction.method, extractionMode === "full" ? "full_page" : extractionMode === "readable" ? "readability" : "main_content", "baseline extraction mode");
+      for (const word of ["ShortLabel911", "ShortContent913", "InheritedContent914", "AnswerContent917", "CodeContent918", "LongContent916"]) {
+        assert.ok(baseline.markdown.includes(word), `baseline ${word}`);
+      }
+      const result = pageToMarkdown(doc, { detectConcealedText: true, ...options });
+      assert.equal(result.extraction.method, baseline.extraction.method, "exception extraction method stays stable");
+      for (const word of ["ShortLabel911", "ShortContent913", "InheritedContent914", "AnswerContent917", "CodeContent918"]) {
+        assert.ok(result.markdown.includes(word), `exception retained ${word}`);
+        assert.ok(result.fullPageMarkdown.includes(word), `full exception retained ${word}`);
+      }
+      assert.ok(!result.markdown.includes("IndependentSecret915"));
+      assert.ok(!result.fullPageMarkdown.includes("IndependentSecret915"));
+      assert.ok(!result.fullPageMarkdown.includes("LongContent916"));
+      assert.equal(result.omissions.find((o) => o.kind === "inactive_tabs").count, 1);
+      assert.ok(result.concealedText.some((e) => e.text.includes("LongContent916")));
+      assert.ok(result.concealedText.some((e) => e.reason === "opacity_zero" && e.text === "IndependentSecret915"));
+    });
+  }
+}
+
+test("concealed detection is opt-in with top-level then nested precedence", () => {
+  const doc = liveFixture('<main><p id="s">OptInSentinel</p></main>', { s: { opacity: "0" } });
+  const base = { extract: "full", includeFullPage: true };
+  const defaultResult = pageToMarkdown(doc, base);
+  assert.deepEqual(defaultResult, pageToMarkdown(doc, { ...base, detectConcealedText: false }));
+  assert.equal(defaultResult.concealmentCheck, "disabled");
+  assert.match(defaultResult.markdown, /OptInSentinel/);
+  const enabled = pageToMarkdown(doc, { ...base, detectConcealedText: true });
+  assert.equal(enabled.concealmentCheck, "computed");
+  assert.doesNotMatch(enabled.markdown, /OptInSentinel/);
+  assert.deepEqual(enabled.concealedText, [{ reason: "opacity_zero", chars: 13, text: "OptInSentinel" }]);
+  for (const [options, expected] of [
+    [{ sanitize: { detectConcealedText: false } }, defaultResult],
+    [{ sanitize: { detectConcealedText: true } }, enabled],
+    [{ detectConcealedText: false, sanitize: { detectConcealedText: true } }, defaultResult],
+    [{ detectConcealedText: true, sanitize: { detectConcealedText: false } }, enabled],
+  ]) assert.deepEqual(pageToMarkdown(doc, { ...base, ...options }), expected);
+  const staticDoc = parseHTML('<html><body><p>Static</p></body></html>').document;
+  assert.equal(pageToMarkdown(staticDoc).concealmentCheck, "disabled");
+  assert.equal(pageToMarkdown(staticDoc, { detectConcealedText: true }).concealmentCheck, "static-only");
+});
 
 function load(file) {
   return parseHTML(fs.readFileSync(path.join(FIXTURES, file), "utf8")).document;

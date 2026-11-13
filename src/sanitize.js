@@ -1,5 +1,6 @@
 // Stage 1: clone the page into an inert document, inline open shadow roots
 // within limits, and strip non-content. The live page is never modified.
+import { CONCEALED_MARK, createConcealmentWalk, isText, isElement, DOM_LOCAL_NAME, DOM_GET_ROOT_NODE, DOM_CHILD_NODES, DOM_NODE_VALUE, DOM_SHADOW_ROOT, DOM_CONTENT, DOM_APPEND_CHILD, DOM_NODE_TYPE} from "./concealed.js";
 
 /** @type {Readonly<Required<import("./types.js").SanitizeOptions>>} */
 export const DEFAULT_SANITIZE_OPTIONS = Object.freeze({
@@ -9,6 +10,7 @@ export const DEFAULT_SANITIZE_OPTIONS = Object.freeze({
   stripMeta: true,
   stripLinkTags: true,
   stripAds: true,
+  detectConcealedText: false,
   // App-specific overlays or widgets to drop, e.g. "[data-app-overlay]".
   extraStripSelectors: [],
   shadowNodeLimit: 5000,
@@ -36,10 +38,10 @@ const AD_ELEMENT_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-(?:placement|advert|adve
 
 /** @param {any} node */
 export function isAdvertisementElement(node) {
-  if (node?.nodeType !== 1) return false;
+  if (node?.[DOM_NODE_TYPE] !== 1) return false;
   // Sites put page-wide ad settings on <body> (heise.de's data-ad-unit).
-  if (node.localName === "html" || node.localName === "body") return false;
-  if (AD_ELEMENT_NAME.test(node.localName || "")) return true;
+  if (node[DOM_LOCAL_NAME] === "html" || node[DOM_LOCAL_NAME] === "body") return false;
+  if (AD_ELEMENT_NAME.test(node[DOM_LOCAL_NAME] || "")) return true;
   try {
     return Boolean(node.matches?.(AD_SELECTOR));
   } catch {
@@ -59,7 +61,7 @@ function stripSelectors(options) {
 }
 
 function isStripped(node, selectors, options) {
-  if (node.nodeType !== 1) return false;
+  if (!isElement(node)) return false;
   if (selectors.some((selector) => node.matches?.(selector))) return true;
   return Boolean(options.stripAds && isAdvertisementElement(node));
 }
@@ -96,27 +98,31 @@ function positiveLimit(value, name) {
  *
  * @param {Document|Element} root
  * @param {import("./types.js").SanitizeOptions} [options]
- * @returns {{ document: Document, omissions: { shadowHosts: number } }}
  */
 export function sanitizeToInertDocument(root, options = {}) {
   const opts = { ...DEFAULT_SANITIZE_OPTIONS, ...options };
-  const limits = {
-    nodes: positiveLimit(opts.shadowNodeLimit, "shadowNodeLimit"),
-    chars: positiveLimit(opts.shadowCharLimit, "shadowCharLimit"),
-    depth: positiveLimit(opts.shadowDepthLimit, "shadowDepthLimit"),
-  };
+  const limits = [
+    positiveLimit(opts.shadowNodeLimit, "shadowNodeLimit"),
+    positiveLimit(opts.shadowCharLimit, "shadowCharLimit"),
+    positiveLimit(opts.shadowDepthLimit, "shadowDepthLimit"),
+  ];
   const selectors = stripSelectors(opts);
-  const sourceDoc = /** @type {Document} */ (root.nodeType === 9 ? root : root.ownerDocument);
-  const source = root.nodeType === 9 ? /** @type {Document} */ (root).documentElement : root;
+  const sourceDoc = /** @type {Document} */ (root[DOM_NODE_TYPE] === 9 ? root : root.ownerDocument);
+  const source = root[DOM_NODE_TYPE] === 9 ? /** @type {Document} */ (root).documentElement : root;
   const inert = createInertDocument(sourceDoc);
+  const concealment = createConcealmentWalk(sourceDoc, opts.detectConcealedText);
 
   function shallow(node) {
-    if (node.nodeType !== 1) return inert.importNode(node, false);
-    const name = node.prefix ? `${node.prefix}:${node.localName}` : node.localName;
+    if (!isElement(node)) {
+      const copy = inert.importNode(node, false);
+      return copy;
+    }
+    const name = node.prefix ? `${node.prefix}:${node[DOM_LOCAL_NAME]}` : node[DOM_LOCAL_NAME];
     const copy = node.namespaceURI
       ? inert.createElementNS(node.namespaceURI, name)
       : inert.createElement(name);
     for (const attr of Array.from(node.attributes || [])) {
+      if (attr.name.toLowerCase() === CONCEALED_MARK) continue;
       // HTML allows colon-bearing names without a namespace (framework
       // directives); setAttributeNS rejects those.
       if (attr.namespaceURI) copy.setAttributeNS(attr.namespaceURI, attr.name, attr.value);
@@ -129,89 +135,111 @@ export function sanitizeToInertDocument(root, options = {}) {
   let chars = 0;
   let overLimit = false;
   let shadowHosts = 0;
+  function carry(work, pair) {
+    for (let i = 2; i <= 8; i++) pair[i] = work[i];
+    return pair;
+  }
 
   function isAssigningSlot(node) {
-    return node.nodeType === 1 && node.localName === "slot"
-      && typeof node.assignedNodes === "function" && Boolean(node.getRootNode?.().host);
+    return isElement(node) && node[DOM_LOCAL_NAME] === "slot"
+      && typeof node.assignedNodes === "function" && !!node[DOM_GET_ROOT_NODE]?.().host;
   }
 
-  function copyShadowRoot(host, target, depth) {
-    const outer = [nodes, chars];
-    nodes = 0;
-    chars = 0;
-    for (const child of Array.from(host.shadowRoot.childNodes)) {
-      const childCopy = shadowNode(child, depth);
-      if (childCopy) target.appendChild(childCopy);
-      if (overLimit) break;
-    }
-    if (overLimit) shadowHosts += 1;
-    overLimit = false;
-    [nodes, chars] = outer;
-  }
-
-  function shadowNode(node, depth) {
-    const inPage = node.getRootNode?.().nodeType === 9;
-    if (depth > limits.depth || (!inPage && ++nodes > limits.nodes)) {
+  function shadowNode(work, depth, lightHost) {
+    const [node, allocated] = work;
+    const inPage = lightHost || node[DOM_GET_ROOT_NODE]?.()[DOM_NODE_TYPE] === 9;
+    if (depth > limits[2] || (!inPage && ++nodes > limits[0])) {
       overLimit = true;
       return null;
     }
-    if (isStripped(node, selectors, opts)) return inert.createDocumentFragment();
-    const copy = shallow(node);
-    if (inPage && node.shadowRoot) {
-      copyShadowRoot(node, copy, depth + 1);
-      return copy;
+    if (!lightHost && isStripped(node, selectors, opts)) return inert.createDocumentFragment();
+    const copy = allocated || shallow(node);
+    work = concealment.inherit(work, node, copy);
+    const host = inPage && node[DOM_SHADOW_ROOT];
+    const outer = host && [nodes, chars];
+    let elementChars = 0;
+    if (host) nodes = chars = 0;
+    else {
+      if (!inPage) chars += isElement(node) ? (elementChars = (copy.outerHTML || "").length) : (node[DOM_NODE_VALUE] || "").length * 6;
+      if (chars > limits[1]) { overLimit = true; return null; }
     }
-    if (!inPage) chars += node.nodeType === 1 ? (copy.outerHTML || "").length : (node.nodeValue || "").length * 6;
-    if (chars > limits.chars) {
-      overLimit = true;
-      return null;
-    }
-    let children = node.childNodes;
+    let children = node[DOM_CHILD_NODES];
     let target = copy;
-    if (isAssigningSlot(node)) {
+    if (host) children = host[DOM_CHILD_NODES];
+    else if (isAssigningSlot(node)) {
       const assigned = node.assignedNodes({ flatten: true });
-      children = assigned.length ? assigned : node.childNodes;
+      children = assigned.length ? assigned : node[DOM_CHILD_NODES];
       target = inert.createDocumentFragment();
-    } else if (node.shadowRoot) {
-      children = node.shadowRoot.childNodes;
-    } else if (node.nodeType === 1 && node.localName === "template" && node.content) {
-      children = node.content.childNodes;
-      target = copy.content || copy;
+    } else if (node[DOM_SHADOW_ROOT]) {
+      children = node[DOM_SHADOW_ROOT][DOM_CHILD_NODES];
+    } else if (isElement(node) && node[DOM_LOCAL_NAME] === "template" && node[DOM_CONTENT]) {
+      children = node[DOM_CONTENT][DOM_CHILD_NODES];
+      target = copy[DOM_CONTENT] || copy;
     }
+    const pairs = [];
+    let textAllocations = 0;
     for (const child of Array.from(children || [])) {
-      const childCopy = shadowNode(child, depth + 1);
-      if (childCopy) target.appendChild(childCopy);
+      // Stripped children still pass through the recursive node-budget gate.
+      // Only direct text must exist while this element's declaration is
+      // local. Element allocation stays behind the recursive budget gate.
+      const pageText = child[DOM_GET_ROOT_NODE]?.()[DOM_NODE_TYPE] === 9;
+      const allocateText = isText(child) && (pageText || ++textAllocations <= limits[0] - nodes);
+      pairs.push([child, allocateText ? shallow(child) : null]);
+    }
+    concealment.process(node, copy, work, host ? null : pairs);
+    if (!inPage && isElement(node)) {
+      // Detection may add the compatibility hidden attribute. Charge it before
+      // accepting children, just as when detection ran during shallow cloning.
+      chars += (copy.outerHTML || "").length - elementChars;
+      if (chars > limits[1]) { overLimit = true; return null; }
+    }
+    for (const pair of pairs) {
+      const childCopy = shadowNode(carry(work, pair), depth + 1);
+      if (childCopy) target[DOM_APPEND_CHILD](childCopy);
       if (overLimit) break;
+    }
+    if (host) {
+      if (overLimit) shadowHosts++;
+      overLimit = false;
+      [nodes, chars] = outer;
+      return copy;
     }
     return isAssigningSlot(node) ? target : copy;
   }
 
   const clone = shallow(source);
+  const initial = concealment.initial(source);
   // Iterative light-DOM walk: ordinary pages get no depth limit.
-  const pending = [[source, clone]];
+  const pending = [carry(initial, [source, clone])];
   while (pending.length) {
-    const [live, copy] = /** @type {any[]} */ (pending.pop());
-    if (live.shadowRoot) {
-      copyShadowRoot(live, copy, 1);
+    const work = /** @type {any[]} */ (pending.pop());
+    const [live, copy] = work;
+    if (live[DOM_SHADOW_ROOT]) {
+      shadowNode(work, 0, true);
       continue;
     }
-    const children = live.content?.childNodes || live.childNodes;
-    const target = copy.content || copy;
+    const children = live[DOM_CONTENT]?.[DOM_CHILD_NODES] || live[DOM_CHILD_NODES];
+    const target = copy[DOM_CONTENT] || copy;
     const pairs = [];
     for (const child of Array.from(children || [])) {
       if (isStripped(child, selectors, opts)) continue;
       const childCopy = shallow(child);
-      target.appendChild(childCopy);
+      target[DOM_APPEND_CHILD](childCopy);
       pairs.push([child, childCopy]);
     }
-    for (let i = pairs.length - 1; i >= 0; i -= 1) pending.push(pairs[i]);
+    concealment.process(live, copy, work, pairs);
+    for (let i = pairs.length - 1; i >= 0; i -= 1) {
+      const pair = pairs[i];
+      if (!isElement(pair[0])) continue;
+      pending.push(carry(concealment.inherit(work, pair[0]), pair));
+    }
   }
 
-  if (clone.localName === "html") {
+  if (clone[DOM_LOCAL_NAME] === "html") {
     inert.removeChild(inert.documentElement);
-    inert.appendChild(clone);
+    inert[DOM_APPEND_CHILD](clone);
   } else {
-    inert.body.appendChild(clone);
+    inert.body[DOM_APPEND_CHILD](clone);
   }
-  return { document: inert, omissions: { shadowHosts } };
+  return { document: inert, omissions: { shadowHosts }, concealment };
 }

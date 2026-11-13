@@ -1,6 +1,6 @@
 {
   "name": "page-markdown",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Faithful page-to-Markdown for humans and agents: sanitize, extract the readable article, convert with GFM, and clean without losing content.",
   "type": "module",
   "exports": {
@@ -31,6 +31,7 @@
     "typecheck": "npm run build:types && node test/types/real-output.mjs && tsc -p test/types && tsc -p test/types/linkedom",
     "size": "node bench/size.mjs",
     "test:browser": "node test/browser/run.mjs",
+    "report:build": "node test/browser/build-report.mjs",
     "ci": "npm test && npm run typecheck && npm run size",
     "prepack": "npm run build:types",
     "prepublishOnly": "npm run ci",

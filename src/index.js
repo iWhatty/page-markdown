@@ -10,7 +10,7 @@ import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 import { collectPageFacts, pageFactsMarkdown, escapeMarkdown } from "./facts.js";
 import { removeHiddenText, hiddenTextOmissions } from "./hidden.js";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 export { sanitizeToInertDocument, DEFAULT_SANITIZE_OPTIONS, isAdvertisementElement, createInertDocument } from "./sanitize.js";
 export { standardizeDocument } from "./standardize.js";
@@ -67,6 +67,7 @@ function hasTopHeading(markdown) {
  * @property {number} [minExtractShare=0.4] when Readability keeps less than this
  *   share of the page's main content, use the main content instead; 0 turns it off
  * @property {boolean} [includeFullPage=false] also return the full-page Markdown
+ * @property {boolean} [detectConcealedText=false] opt-in live computed-style check, default false
  * @property {boolean} [includeTitle=true] start readable output with "# <headline>"
  * @property {boolean} [recoverLead=true] restore a dropped lead paragraph that matches the meta description
  * @property {boolean} [pageFacts=false] append "## Page facts": short label/value pairs
@@ -94,8 +95,14 @@ export function pageToMarkdown(input, options = {}) {
   /** @type {string[]} */
   const warnings = [];
 
-  const { document: inert, omissions } = sanitizeToInertDocument(input, options.sanitize);
-  const standardization = standardizeDocument(inert, { url: baseUrl(doc, url) });
+  const { document: inert, omissions, concealment } = sanitizeToInertDocument(input, {
+    ...options.sanitize,
+    detectConcealedText: options.detectConcealedText ?? options.sanitize?.detectConcealedText ?? false,
+  });
+  const standardization = standardizeDocument(inert, { url: baseUrl(doc, url), concealment });
+  if (concealment.pendingOpacity) warnings.push(`Pending opacity content retained in ${concealment.pendingOpacity} element(s): provisional scroll-reveal policy`);
+  if (concealment.check === "incomplete") warnings.push("Concealed text check incomplete: computed-style values unavailable");
+  if (concealment.summary.truncated) warnings.push("Concealed text report truncated at capture limits; counts include uncapped text");
   const extraction = extractContent(inert, {
     extract: options.extract,
     minExtractChars: options.minExtractChars,
@@ -129,6 +136,10 @@ export function pageToMarkdown(input, options = {}) {
   }
   /** @type {import("./types.js").PageMarkdownOmission[]} */
   const omissionList = [];
+  if (concealment.summary.count) {
+    omissionList.push({ kind: "concealed_text", count: concealment.summary.count, chars: concealment.summary.chars,
+      note: `Concealed text omitted: ${concealment.summary.count} block(s), ${concealment.summary.chars} UTF-16 units` });
+  }
   if (omissions.shadowHosts) {
     omissionList.push({ kind: "shadow_content", count: omissions.shadowHosts, note: "Open shadow content omitted: capture limit" });
   }
@@ -147,6 +158,9 @@ export function pageToMarkdown(input, options = {}) {
   /** @type {import("./types.js").PageMarkdownResult} */
   const result = {
     version: VERSION,
+    concealedText: concealment.entries,
+    concealmentCheck: concealment.check,
+    concealedTextTruncated: concealment.summary.truncated,
     markdown: main.markdown,
     metadata: {
       ...pageMetadata,
@@ -195,6 +209,11 @@ export function pageToMarkdown(input, options = {}) {
     ...(omissions.shadowHosts ? [`Open shadow content omitted: capture limit (${omissions.shadowHosts} host(s))`] : []),
   ].map((notice) => (options.removeHiddenText ? removeHiddenText(notice).text : notice));
   for (const notice of notices) result.markdown += `\n\n_${notice}._`;
+  const concealedNotice = omissionList.find(({ kind }) => kind === "concealed_text")?.note;
+  if (concealedNotice) {
+    result.markdown += `\n\n_${concealedNotice}._`;
+    if (result.fullPageMarkdown !== undefined) result.fullPageMarkdown += `\n\n_${concealedNotice}._`;
+  }
   result.stats.markdownChars = result.markdown.length;
   return result;
 }
