@@ -252,7 +252,7 @@ function tabOf(panel, tabs) {
  * name, in place of a tab strip that points nowhere. A long inactive panel is
  * left out, and named in stats.omittedTabs.
  */
-function standardizeTabPanels(doc, stats, concealment) {
+export function prepareConcealment(doc, concealment) {
   // Docker's docs write aria-role, and call a panel a tab: only the strip's is right.
   for (const list of Array.from(doc.querySelectorAll("[aria-role='tablist']"))) {
     list.setAttribute("role", "tablist");
@@ -271,6 +271,11 @@ function standardizeTabPanels(doc, stats, concealment) {
     }
   }
   concealment?.lift(doc);
+  return { panels, hasProvenance, inactive, panelLengths };
+}
+
+function standardizeTabPanels(doc, stats, concealment) {
+  const { panels, hasProvenance, inactive, panelLengths } = prepareConcealment(doc, concealment);
   if (!panels.length) return;
   const tabs = Array.from(doc.querySelectorAll(TABS));
   for (const panel of panels) {
@@ -314,7 +319,7 @@ function standardizeAsides(doc) {
 
 /**
  * @param {Document} doc the inert clone (mutated in place)
- * @param {{ url?: string, concealment?: ReturnType<typeof import('./concealed.js').createConcealment> }} [options]
+ * @param {{ url?: string, concealment?: ReturnType<typeof import('./concealed.js').createConcealmentWalk> }} [options]
  */
 export function standardizeDocument(doc, options = {}) {
   const base = options.url || "";

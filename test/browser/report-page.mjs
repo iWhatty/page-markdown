@@ -1,6 +1,7 @@
 import * as PageMarkdown from '../../src/index.js';
 import { cases, FIELDS, OPTIONAL_FIELDS, SCOPE, describeExpected } from './report-cases.mjs';
 import { scoreReport, caseErrors, median } from './report-score.mjs';
+import { timingSteps, walkBaseline, sanitizeStage, conversionStage, pairedSummary } from './report-timing.mjs';
 import { treeState, observeResult } from './report-observe.mjs';
 
 const $ = id => document.getElementById(id);
@@ -14,6 +15,7 @@ const report = { schema: 1, scope: SCOPE, metadata: { ...REPORT_BUILD, userAgent
     expected: 'entries are [reason, chars] in order; retained follows actual.sentinels key order; exact entry text is checked against the versioned case table' },
   truncation: { applied: false, note: 'No report strings truncated. concealedText uses the package capture caps; chars preserves original length.' } };
 const profiles = new Map();
+const reportStarted = performance.now();
 function errorText(error) {
   return String(error?.stack || error);
 }
@@ -89,53 +91,69 @@ async function runCase(c) {
   return row;
 }
 async function measure(levels, label) {
-  const p = { label, complete: false, backgrounded,
-    visibility: document.visibilityState, options: { extract: 'full', includeFullPage: true },
-    budgetMs: 60000, limit: 'Checked between synchronous calls; cannot interrupt a blocked call',
-    on: [], off: [], warmups: [], order: [] };
-  const start = performance.now();
-  // Same total element count. Deep is the original 30 containers + 19,970
-  // siblings; shallow trades containers for siblings (depths 34 and 8).
+  const p = { label, complete: false, backgrounded, visibility: document.visibilityState,
+    options: { extract: 'full', includeFullPage: true }, on: [], off: [], warmups: [], order: [],
+    sampleCount: 5, attribution: [], attributionOrder: [],
+    stages: 'Steps 5/6 time sanitize plus production exemption preparation and lift; later standardization is excluded. Step 7 includes every conversion stage.',
+    baseline: 'Steps 1–4 traverse every element/text node; style reads exclude stripped style/meta elements. Step 4 matches the fixture’s six wrapper reads, up to three text reads and conditional opacity reads; consumed in a running checksum.',
+    estimate: 'Estimated cost above the matched style-read baseline; not a lower bound or an exact decomposition.' };
   const html = '<main>' + '<div class="level">'.repeat(levels)
     + Array.from({ length: 20000 - levels }, (_, i) => `<span class="${i % 101 === 0 ? 'concealed' : 'word'}">word${i} </span>`).join('')
     + '</div>'.repeat(levels) + '</main>';
   const css = 'body{font:16px sans-serif;background:white;color:black}.level{display:block}.word{color:rgb(10,20,30)}.concealed{opacity:0}';
-  const order = [true, false, ...Array.from({ length: 5 }, () => [true, false]).flat()];
+  let frame;
   try {
-    for (const [i, enabled] of order.entries()) {
-      if (performance.now() - start >= 60000) { p.timedOut = true; break; }
-      $('progress').textContent = `measuring ${label}… ${Math.max(0, i - 1)}/10 samples complete`;
-      let frame;
-      try {
-        frame = await frameFor(html, css, `timing-${i}`);
-        const doc = frame.contentDocument;
-        if (i === 0) {
-          p.elementCount = doc.querySelectorAll('*').length;
-          const todo = [[doc.documentElement, 1]];
-          p.depth = 0;
-          while (todo.length) { const [el, depth] = todo.pop(); p.depth = Math.max(p.depth, depth); for (const child of el.children) todo.push([child, depth + 1]); }
-          p.viewport = viewport(frame.contentWindow);
+    frame = await frameFor(html, css, `timing-${label}`);
+    const doc = frame.contentDocument;
+    p.elementCount = doc.querySelectorAll('*').length;
+    const todo = [[doc.documentElement, 1]];
+    p.depth = 0;
+    while (todo.length) { const [el, depth] = todo.pop(); p.depth = Math.max(p.depth, depth); for (const child of el.children) todo.push([child, depth + 1]); }
+    p.viewport = viewport(frame.contentWindow);
+    const operations = [null, () => walkBaseline(doc, 1), () => walkBaseline(doc, 2),
+      () => walkBaseline(doc, 3), () => walkBaseline(doc, 4),
+      () => sanitizeStage(doc, false), () => { p.counters = sanitizeStage(doc, true); },
+      enabled => conversionStage(doc, enabled)];
+    const timed = (step, enabled) => { const t = performance.now(); operations[step](enabled); return performance.now() - t; };
+    // Warm every step. Reuse one rendered, unmodified fixture for matched style
+    // conditions; alternate the order within each pair on successive runs.
+    for (let step = 1; step <= 7; step++) p.attribution.push({ step, label: timingSteps[step - 1], samples: [], warmups: [timed(step, false)], order: [] });
+    p.warmups.push(p.attribution[6].warmups[0], timed(7, true));
+    p.attribution[6].warmups.push(p.warmups[1]);
+    const perRun = p.attribution.reduce((sum, row) => sum + row.warmups.reduce((a, b) => a + b, 0), 0);
+    const remaining = Math.max(0, 85000 - (performance.now() - reportStarted));
+    p.sampleCount = Math.max(1, Math.min(5, Math.floor(remaining / (label === 'shallow' ? 2 : 1) / Math.max(1, perRun))));
+    if (p.sampleCount < 5) p.reducedSamples = `Reduced to ${p.sampleCount} paired runs per step to target 85 seconds total; no steps omitted.`;
+    for (let run = 0; run < p.sampleCount; run++) {
+      $('progress').textContent = `measuring ${label}: attribution pair ${run + 1}/${p.sampleCount}`;
+      for (const pair of [[1, 2], [3, 4], [5, 6]]) {
+        for (const step of run % 2 ? [...pair].reverse() : pair) {
+          p.attribution[step - 1].samples.push(timed(step));
+          p.attribution[step - 1].order.push(step);
+          p.attributionOrder.push(step);
         }
-        if (performance.now() - start >= 60000) { p.timedOut = true; break; }
-        const options = { extract: 'full', includeFullPage: true, detectConcealedText: enabled };
-        const t = performance.now();
-        PageMarkdown.pageToMarkdown(doc, options);
-        const elapsed = performance.now() - t;
-        p.order.push(enabled);
-        if (i < 2) p.warmups.push(elapsed); else (enabled ? p.on : p.off).push(elapsed);
-        if (performance.now() - start >= 60000) { p.timedOut = true; break; }
-      } finally { frame?.remove(); }
+      }
+      for (const enabled of run % 2 ? [false, true] : [true, false]) {
+        const elapsed = timed(7, enabled);
+        (enabled ? p.on : p.off).push(elapsed); p.order.push(enabled);
+      }
       await turn();
     }
-    p.complete = p.order.length === 12 && !p.timedOut;
+    for (const row of p.attribution.slice(0, 6)) row.medianMs = median(row.samples);
+    p.attribution[6].on = p.on; p.attribution[6].off = p.off;
+    Object.assign(p.attribution[6], pairedSummary(p.on, p.off));
+    p.sanitize = pairedSummary(p.attribution[5].samples, p.attribution[4].samples);
+    p.styleReadDifferences = p.attribution[3].samples.map((n, i) => n - p.attribution[0].samples[i]);
+    p.estimatedResidualSamples = p.sanitize.differences.map((n, i) => n - p.styleReadDifferences[i]);
+    p.estimatedResidualMs = median(p.estimatedResidualSamples);
+    Object.assign(p, pairedSummary(p.on, p.off));
+    p.complete = true;
   } catch (error) { p.exception = errorText(error); }
+  finally { frame?.remove(); }
   p.backgrounded = backgrounded;
-  if (p.on.length === 5 && p.off.length === 5) {
-    p.onMedianMs = median(p.on); p.offMedianMs = median(p.off);
-    p.ratio = p.onMedianMs / p.offMedianMs; p.overheadMs = p.onMedianMs - p.offMedianMs;
-  }
   return p;
 }
+
 function finish() {
   report.summary = scoreReport(report);
   for (const c of cases) {
@@ -170,8 +188,13 @@ function finish() {
   $('timing').textContent = timing ? ['shallow', 'deep'].map(label => {
     const p = label === 'deep' ? report.performance : report.performance.shallow;
     const t = label === 'deep' ? timing : timing.shallow;
-    return `${label}: ${p.elementCount} elements, depth ${p.depth}; on samples ${JSON.stringify(p.on)} ms; off samples ${JSON.stringify(p.off)} ms; warm-ups ${JSON.stringify(p.warmups)} ms; medians on ${t.onMedianMs.toFixed(1)} / off ${t.offMedianMs.toFixed(1)} ms; ratio ${t.ratio.toFixed(3)}; added ${t.overheadMs.toFixed(1)} ms`;
-  }).join('\n') + `\nDeep targets (informational, outside PASS): ≤25% added: ${timing.targets.relative}; ≤250 ms added: ${timing.targets.absolute}` : 'Timing incomplete';
+    return `${label}: ${p.elementCount} elements, depth ${p.depth}; ${p.sampleCount} samples per step; ${p.reducedSamples || 'no sample reduction'}\n`
+      + p.attribution.map(row => `${row.step}. ${row.label}: ${JSON.stringify(row)}`).join('\n')
+      + `\n${p.stages}\n${p.baseline}\nSanitize paired differences ${JSON.stringify(p.sanitize.differences)} ms; median ${p.sanitize.overheadMs.toFixed(1)} ms`
+      + `\nConversion paired differences ${JSON.stringify(t.differences)} ms; medians on ${t.onMedianMs.toFixed(1)} / off ${t.offMedianMs.toFixed(1)} ms; median paired added ${t.overheadMs.toFixed(1)} ms`
+      + `\nEstimated cost above matched style-read baseline: ${p.estimatedResidualMs.toFixed(1)} ms; samples ${JSON.stringify(p.estimatedResidualSamples)}. ${p.estimate}`
+      + `\nDetector counters: ${JSON.stringify(p.counters)}\nTargets (informational, outside PASS): ≤25% added: ${t.targets.relative}; ≤250 ms added: ${t.targets.absolute}`;
+  }).join('\n\n') : 'Timing incomplete';
   $('progress').textContent = `Complete. ${new TextEncoder().encode(json).length} report bytes. Tuple encodings are described in JSON encoding. Raw tuples use computedProperties order; evidence[1] indexes computedStyles. Null means an optional property was not exposed.`;
   $('copy').disabled = false;
   $('copy').onclick = async () => {

@@ -46,7 +46,12 @@ function passingReport() {
         ...(c.expected.inactiveTabs !== undefined ? { inactiveTabs: c.expected.inactiveTabs } : {}) } })),
     performance: { complete: true, backgrounded: false, on: [2, 4, 3, 5, 1], off: [1, 2, 3, 2, 4], warmups: [5, 4],
       visibility: 'visible', viewport: { width: 640, height: 180 },
-      elementCount: 20006, depth: 33, order: [true, false, ...Array.from({ length: 5 }, () => [true, false]).flat()] } };
+      elementCount: 20006, depth: 33, sampleCount: 5,
+      attributionOrder: Array.from({ length: 5 }, (_, i) => i % 2 ? [2, 1, 4, 3, 6, 5] : [1, 2, 3, 4, 5, 6]).flat(),
+      counters: { styleCalls: 20005, propertyReads: 180000, recordsCreated: 198, slowPathEntries: 594, probeStyleCalls: 1, probeReads: 19, outsideStyleCalls: 0, outsideReads: 0, rereads: 0 },
+      order: Array.from({ length: 5 }, (_, i) => i % 2 ? [false, true] : [true, false]).flat() } };
+  report.performance.attribution = Array.from({ length: 7 }, (_, i) => ({ step: i + 1, label: `Step ${i + 1}`,
+    warmups: i === 6 ? [5, 4] : [1], ...(i === 6 ? { on: report.performance.on, off: report.performance.off } : { samples: [1, 2, 3, 4, 5] }) }));
   report.performance.shallow = { ...structuredClone(report.performance), depth: 8 };
   return report;
 }
@@ -60,12 +65,17 @@ test('report requires both timing trees and keeps targets outside PASS', () => {
     r => { r.performance.shallow.depth = 34; },
     r => { r.performance.shallow.elementCount--; },
     r => { r.performance.shallow.order.reverse(); },
+    r => { r.performance.attribution.pop(); },
+    r => { r.performance.attribution[3].samples.pop(); },
+    r => { r.performance.attribution[5].warmups = []; },
+    r => { delete r.performance.counters; },
   ]) {
     const report = passingReport(); mutate(report);
     assert.equal(scoreReport(report).status, 'FAIL');
   }
   const report = passingReport();
   report.performance.on = [1000, 1000, 1000, 1000, 1000];
+  report.performance.attribution[6].on = report.performance.on;
   const score = scoreReport(report);
   assert.equal(score.status, 'PASS');
   assert.deepEqual(score.timing.targets, { relative: 'not met', absolute: 'not met' });
@@ -76,6 +86,25 @@ test('report requires both timing trees and keeps targets outside PASS', () => {
     changed.cases.find(c => c.id === id).actual.concealedText = [{ reason: 'same_color', chars: 1, text: 'x' }];
     assert.deepEqual(scoreReport(changed).failures, [id], 'coverage limit retains its assertions');
   }
+});
+
+test('timing uses paired differences and accepts explicitly reduced complete samples', () => {
+  const report = passingReport(), p = report.performance;
+  p.on = [101, 2, 103, 4, 105]; p.off = [100, 100, 100, 1, 1];
+  p.attribution[6].on = p.on; p.attribution[6].off = p.off;
+  assert.equal(scoreReport(report).timing.overheadMs, 3);
+  assert.notEqual(scoreReport(report).timing.overheadMs, 101 - 100);
+  for (const tree of [p, p.shallow]) {
+    tree.sampleCount = 3; tree.reducedSamples = 'Reduced to three pairs to target 85 seconds.';
+    tree.on = tree.on.slice(0, 3); tree.off = tree.off.slice(0, 3);
+    tree.order = tree.order.slice(0, 6);
+    tree.attributionOrder = tree.attributionOrder.slice(0, 18);
+    for (const row of tree.attribution.slice(0, 6)) row.samples = row.samples.slice(0, 3);
+    tree.attribution[6].on = tree.on; tree.attribution[6].off = tree.off;
+  }
+  assert.equal(scoreReport(report).status, 'PASS');
+  delete p.reducedSamples;
+  assert.equal(scoreReport(report).status, 'FAIL');
 });
 test('score CLI recomputes a passing and failing hand-made report', () => {
   fs.mkdirSync('.browser-test', { recursive: true });
@@ -120,9 +149,9 @@ test('scoring rejects missing cases, skips, exceptions, raw gaps and incomplete/
 
 test('raw property inventory stays aligned with concealed.js reads', () => {
   const source = fs.readFileSync('src/concealed.js', 'utf8');
-  const list = name => JSON.parse(source.match(new RegExp(`const ${name} = (\\[[^;]+\\]);`))[1]);
-  assert.deepEqual(FIELDS, list('FIELDS'));
-  assert.deepEqual(OPTIONAL_FIELDS, list('OPTIONAL_FIELDS'));
+  const fields = source.match(/const ALL_FIELDS = '([^']+)'\.split\(' '\);/)[1].split(' ');
+  assert.deepEqual(FIELDS, fields.slice(0, 16));
+  assert.deepEqual(OPTIONAL_FIELDS, fields.slice(16));
   assert.equal(cases.length, new Set(cases.map(c => c.id)).size);
   assert.deepEqual(Object.fromEntries('ABCDEFGHIJ'.split('').map(g => [g, cases.filter(c => c.group === g).length])),
     { A: 11, B: 11, C: 8, D: 12, E: 2, F: 34, G: 4, H: 1, I: 1, J: 1 });

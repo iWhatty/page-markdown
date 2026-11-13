@@ -71,20 +71,38 @@ export function scoreReport(report) {
     if (!row || row.exception || row.skipped || infrastructureErrors.length) structural.push(`incomplete known limit ${c.id}: ${infrastructureErrors.join(', ')}`);
   }
   const p = report?.performance;
-  const validSamples = list => Array.isArray(list) && list.length === 5 && list.every(n => typeof n === 'number' && Number.isFinite(n) && n > 0);
+  const validSamples = (list, count) => Array.isArray(list) && list.length === count && list.every(n => typeof n === 'number' && Number.isFinite(n) && n > 0);
   let timing = null;
-  const validTiming = (tree, minDepth, maxDepth) => tree?.complete === true && tree?.backgrounded === false && !tree?.exception && !tree?.timedOut && validSamples(tree?.on) && validSamples(tree?.off)
+  const validTiming = (tree, minDepth, maxDepth) => tree?.complete === true && tree?.backgrounded === false && !tree?.exception && !tree?.timedOut
+    && Number.isInteger(tree.sampleCount) && tree.sampleCount >= 1 && tree.sampleCount <= 5 && (tree.sampleCount === 5 || typeof tree.reducedSamples === 'string')
+    && validSamples(tree?.on, tree.sampleCount) && validSamples(tree?.off, tree.sampleCount)
     && Array.isArray(tree.warmups) && tree.warmups.length === 2 && tree.warmups.every(n => Number.isFinite(n) && n > 0)
     && Number.isInteger(tree.elementCount) && tree.elementCount >= 19000 && tree.elementCount <= 21000 && Number.isInteger(tree.depth) && tree.depth >= minDepth && tree.depth <= maxDepth
     && tree.visibility === 'visible' && tree.viewport?.width > 0 && tree.viewport?.height > 0
-    && equal(tree.order, [true, false, ...Array.from({ length: 5 }, () => [true, false]).flat()]);
+    && equal(tree.order, Array.from({ length: tree.sampleCount }, (_, i) => i % 2 ? [false, true] : [true, false]).flat())
+    && equal(tree.attributionOrder, Array.from({ length: tree.sampleCount }, (_, i) => i % 2 ? [2, 1, 4, 3, 6, 5] : [1, 2, 3, 4, 5, 6]).flat())
+    && Array.isArray(tree.attribution) && tree.attribution.length === 7 && tree.attribution.every((row, i) => row.step === i + 1
+      && typeof row.label === 'string' && validSamples(row.warmups, i === 6 ? 2 : 1)
+      && (i === 6 ? equal(row.on, tree.on) && equal(row.off, tree.off) : validSamples(row.samples, tree.sampleCount)))
+    && tree.counters && ['styleCalls', 'propertyReads', 'recordsCreated', 'slowPathEntries', 'probeStyleCalls', 'probeReads', 'outsideStyleCalls', 'outsideReads', 'rereads'].every(k => Number.isInteger(tree.counters[k]) && tree.counters[k] >= 0);
   const summarize = tree => {
     const on = median(tree.on), off = median(tree.off);
-    return { onMedianMs: on, offMedianMs: off, ratio: on / off, overheadMs: on - off };
+    const differences = tree.on.map((n, i) => n - tree.off[i]);
+    const overheadMs = median(differences), ratio = 1 + overheadMs / off;
+    return { onMedianMs: on, offMedianMs: off, differences, ratio, overheadMs,
+      targets: { relative: ratio <= 1.25 ? 'met' : 'not met', absolute: overheadMs <= 250 ? 'met' : 'not met' } };
   };
   if (!validTiming(p, 28, 35) || !validTiming(p?.shallow, 6, 10) || p.elementCount !== p.shallow.elementCount) structural.push('incomplete/invalid timing');
   else {
-    timing = { ...summarize(p), shallow: summarize(p.shallow) };
+    const attribution = tree => {
+      const a = tree.attribution;
+      const sanitize = summarize({ on: a[5].samples, off: a[4].samples });
+      const styleReadDifferences = a[3].samples.map((n, i) => n - a[0].samples[i]);
+      const residualSamples = sanitize.differences.map((n, i) => n - styleReadDifferences[i]);
+      return { ...summarize(tree), sanitize, styleReadDifferences, estimatedResidualSamples: residualSamples,
+        estimatedResidualMs: median(residualSamples) };
+    };
+    timing = { ...attribution(p), shallow: attribution(p.shallow) };
     timing.targets = { relative: timing.ratio <= 1.25 ? 'met' : 'not met', absolute: timing.overheadMs <= 250 ? 'met' : 'not met' };
   }
   if (report?.exception) structural.push(`page exception: ${report.exception}`);
