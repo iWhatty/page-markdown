@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
 import { sanitizeToInertDocument } from '../src/sanitize.js';
+import { createConcealmentWalk } from '../src/concealed.js';
 
 function measure(depth, concealed = false, varied = false, options = { detectConcealedText: true }) {
   const containers = depth - 3;
@@ -58,7 +59,7 @@ function measure(depth, concealed = false, varied = false, options = { detectCon
     total: [...reads.values()].reduce((sum, m) => sum + [...m.values()].reduce((a, b) => a + b, 0), 0) };
 }
 
-test('default disabled detector makes zero style calls, reads or collection writes', () => {
+test('default disabled detector makes zero style calls, reads, ancestry reads or collection writes', () => {
   for (const depth of [6, 30]) for (const options of [{}, { detectConcealedText: false }]) {
     const result = measure(depth, true, false, options);
     assert.equal(result.check, 'disabled');
@@ -67,6 +68,21 @@ test('default disabled detector makes zero style calls, reads or collection writ
     assert.equal(result.writes, 0);
     assert.ok(Object.values(result.counters).every(n => n === 0));
   }
+  const { document } = parseHTML('<html><body><span>Visible words</span></body></html>');
+  let ancestryReads = 0;
+  // Count independently of detector counters, including inherit()'s early path.
+  for (const enabled of [undefined, false]) {
+    const walk = createConcealmentWalk(document, enabled);
+    for (const source of [document.querySelector('span'), document.querySelector('span').firstChild]) {
+      const child = new Proxy(source, { get(target, field) {
+        if (['assignedSlot', 'parentElement', 'getRootNode'].includes(field)) ancestryReads++;
+        return Reflect.get(target, field, target);
+      } });
+      const work = walk.initial(child);
+      walk.inherit(work, child);
+    }
+  }
+  assert.equal(ancestryReads, 0, 'disabled detector makes zero ancestry reads');
 });
 
 test('concealed style calls and property reads stay bounded on both depth fixtures', t => {

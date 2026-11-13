@@ -226,7 +226,7 @@ its products. What it still fails on these pages:
 
 - **Promo boxes kept** inside a BBC Arabic article.
 
-Browser bundle: about 77 KB minified, 27 KB gzip (`npm run size`, ceiling 78 KB
+Browser bundle: about 86.0 KB minified, 31.2 KB gzip (`npm run size`, ceiling 86 KB
 minified). Readability is most of it.
 
 `npm run ci` runs the contract suite, the type check and the size check, and must

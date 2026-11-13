@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-13
+
 - Build the live-style report with `npm run report:build`, then open `.browser-test/concealment-report.html` in an already running browser.
 
 - **Opt-in:** enable `detectConcealedText: true` to separate text concealed by
@@ -30,11 +32,17 @@
   pending real-site evidence and Astra review.
   Colour detection handles computed sRGB rgb()/rgba() only, for own text.
   OKLCH and Display P3 computed colours are not parsed, so even white text on
-  white in those forms can stay in the output. At commit `2a3b0b5`, Chrome 157,
-  on 20,006 elements, detection added 442 ms on the deep tree (1068 against
-  626 ms) and 340 ms on the shallow tree (1161 against 821 ms). The targets
-  of at most 25% and 250 ms added were not met. The fast path that followed
-  has not been measured in a browser yet.
+  white in those forms can stay in the output.
+  Measured in Chrome 157 on Windows, on one machine, using synthetic pages
+  of 20,006 elements built from `95bf97d`, with five warmed alternating pairs
+  per page: full conversion with detection added a paired-median 100.5 ms
+  on the deep page and 108.5 ms on the shallow page, about 12.5% each.
+  Both full-conversion targets (at most 25% and at most 250 ms added) were met.
+  The sanitize stage with detection (including preparation and lift) added
+  about 127 ms on either page. The earlier candidate (`2a3b0b5`) added about
+  442 ms deep and 340 ms shallow by a difference of medians, which is not
+  directly comparable. This is not a general performance guarantee;
+  real-site cost is not yet measured.
   Chrome is the only browser tested; Firefox and
   Safari are untested.
   Unknown colours, missing opaque backgrounds, intervening translucent layers
