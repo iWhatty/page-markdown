@@ -1,0 +1,160 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { buildReport } from './browser/build-report.mjs';
+import { cases, FIELDS, OPTIONAL_FIELDS, SCOPE, describeExpected } from './browser/report-cases.mjs';
+import { scoreReport, caseErrors } from './browser/report-score.mjs';
+import { pageToMarkdown } from '../src/index.js';
+import { stubFixture } from './browser/report-stub.mjs';
+import { treeState, observeResult } from './browser/report-observe.mjs';
+
+test('report builds one self-contained page with every case and no launcher imports', async () => {
+  const source = fs.readFileSync('test/browser/build-report.mjs', 'utf8');
+  assert.doesNotMatch(source, /safe-chromium|child_process/);
+  const { output, bytes } = await buildReport();
+  const html = fs.readFileSync(output, 'utf8');
+  assert.equal(bytes, Buffer.byteLength(html));
+  // URLs as inert bundle strings are allowed; network-bearing HTML is not.
+  assert.doesNotMatch(html, /<(?:script|iframe|img|link|source)\b[^>]*\b(?:src|href)\s*=/i);
+  assert.doesNotMatch(html, /@import\s|url\(\s*["']?https?:|\b(?:src|href)\s*=\s*["']?(?:https?:)?\/\//i);
+  assert.match(html, /connect-src 'none'/);
+  assert.match(html, /readonly/);
+  assert.match(html, /Copy report/);
+  // IDs are table-generated at runtime; bundled literals alone need not contain
+  // expanded IDs. Embed a manifest in the artifact to make inventory auditable.
+  for (const c of cases) assert.ok(html.includes(c.id), `missing ${c.id}`);
+});
+
+// A hand-made observation report: no converter, browser or supplied pass flag.
+function passingReport() {
+  const raw = ['block', 'visible', '1', '16px', 'static', 'auto', 'none', 'all', '0s', 'none', '0s', 'rgb(0, 0, 0)', 'rgba(0, 0, 0, 0)', 'none', 'border-box', 'none', null, null, null];
+  return { schema: 1, scope: SCOPE, metadata: { userAgent: 'hand-made test report', version: '0.2.0', commit: 'a'.repeat(40), builtAt: '2026-11-13T12:00:00Z', visibility: 'visible', viewport: { width: 800, height: 600 } },
+    computedProperties: [...FIELDS, ...OPTIONAL_FIELDS], computedStyles: [raw],
+    frameContexts: [{ viewport: { width: 640, height: 180 }, visibility: 'visible' }],
+    cases: cases.map(c => ({ id: c.id, context: 0,
+      evidence: [['#target', 0, true]], ...(c.support ? { support: { syntax: c.support, supported: true } } : {}),
+      actual: { concealmentCheck: c.expected.check, concealedText: c.expected.entries,
+        omittedCount: c.expected.entries.length, omittedChars: c.expected.entries.reduce((n, e) => n + e.chars, 0),
+        ...(c.expected.entries.some(e => e.chars > e.text.length) ? { truncated: true } : {}), sourceUnchanged: true,
+        sentinels: Object.fromEntries(Object.entries(c.expected.sentinels).map(([text, present]) => [text, [present, present]])),
+        notice: [!!c.expected.entries.length, !!c.expected.entries.length],
+        noticeText: c.expected.entries.length ? `Concealed text omitted: ${c.expected.entries.length} block(s), ${c.expected.entries.reduce((n, e) => n + e.chars, 0)} UTF-16 units` : '',
+        firstLine: [c.expected.firstLine, c.expected.firstLine],
+        pending: c.expected.pending, ...(c.provisional ? { pendingCount: c.expected.pending ? 1 : 0 } : {}),
+        ...(c.expected.inactiveTabs !== undefined ? { inactiveTabs: c.expected.inactiveTabs } : {}) } })),
+    performance: { complete: true, backgrounded: false, on: [2, 4, 3, 5, 1], off: [1, 2, 3, 2, 4], warmups: [5, 4],
+      visibility: 'visible', viewport: { width: 640, height: 180 },
+      elementCount: 20006, depth: 33, order: [true, false, ...Array.from({ length: 5 }, () => [true, false]).flat()] } };
+}
+test('score CLI recomputes a passing and failing hand-made report', () => {
+  fs.mkdirSync('.browser-test', { recursive: true });
+  const file = path.resolve('.browser-test/score-test.json');
+  try {
+    const report = passingReport();
+    fs.writeFileSync(file, JSON.stringify(report));
+    let result = spawnSync(process.execPath, ['test/browser/score-report.mjs', file], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.deepEqual(JSON.parse(result.stdout), scoreReport(report));
+    assert.equal(scoreReport(report).timing.overheadMs, 1);
+    report.cases[0].actual.concealedText = [];
+    report.cases[0].pass = true;
+    report.cases[0].expected = {};
+    report.summary = { status: 'PASS' };
+    fs.writeFileSync(file, JSON.stringify(report));
+    result = spawnSync(process.execPath, ['test/browser/score-report.mjs', file], { encoding: 'utf8' });
+    assert.equal(result.status, 1);
+    assert.deepEqual(JSON.parse(result.stdout).failures, ['A-display-none']);
+  } finally { fs.unlinkSync(file); }
+});
+test('scoring rejects missing cases, skips, exceptions, raw gaps and incomplete/background timing', () => {
+  for (const mutate of [
+    r => r.cases.pop(), r => { r.cases[0].skipped = 'unexpected'; },
+    r => { r.cases[0].exception = 'conversion failed'; }, r => { r.computedStyles = []; },
+    r => { r.performance.on.pop(); }, r => { r.performance.backgrounded = true; },
+    r => { r.performance.timedOut = true; }, r => { r.cases.find(c => c.id.startsWith('E-')).evidence = []; },
+    r => { r.cases[1] = r.cases[0]; },
+  ]) {
+    const report = passingReport(); mutate(report);
+    assert.equal(scoreReport(report).status, 'FAIL');
+  }
+  const report = passingReport();
+  const modern = report.cases.find(c => c.id === 'C-oklch');
+  modern.support.supported = false; modern.skipped = 'unsupported CSS'; delete modern.actual;
+  assert.equal(scoreReport(report).status, 'PASS');
+  const known = report.cases.find(c => c.id === 'E-alpha-small');
+  known.actual.concealedText = [{ reason: 'transparent_text', chars: 1, text: 'x' }];
+  assert.equal(scoreReport(report).status, 'PASS');
+  assert.ok(scoreReport(report).knownLimits.find(r => r.id === known.id).errors.length);
+});
+
+test('raw property inventory stays aligned with concealed.js reads', () => {
+  const source = fs.readFileSync('src/concealed.js', 'utf8');
+  const list = name => JSON.parse(source.match(new RegExp(`const ${name} = (\\[[^;]+\\]);`))[1]);
+  assert.deepEqual(FIELDS, list('FIELDS'));
+  assert.deepEqual(OPTIONAL_FIELDS, list('OPTIONAL_FIELDS'));
+  assert.equal(cases.length, new Set(cases.map(c => c.id)).size);
+  assert.deepEqual(Object.fromEntries('ABCDEFGHIJ'.split('').map(g => [g, cases.filter(c => c.group === g).length])),
+    { A: 11, B: 11, C: 8, D: 12, E: 2, F: 34, G: 4, H: 1, I: 1, J: 1 });
+});
+
+test('scoring accepts reordered entry keys', () => {
+  const report = passingReport();
+  report.cases[0].actual.concealedText = report.cases[0].actual.concealedText.map(({ reason, text, chars }) => ({ chars, reason, text }));
+  assert.equal(scoreReport(report).status, 'PASS');
+});
+
+for (const [field, value] of [['reason', 'wrong_reason'], ['text', 'wrong text'], ['chars', -1]]) {
+  test(`scoring rejects changed entry ${field}`, () => {
+    const report = passingReport();
+    report.cases[0].actual.concealedText = report.cases[0].actual.concealedText.map(entry => ({ ...entry, [field]: value }));
+    assert.deepEqual(scoreReport(report).failures, ['A-display-none']);
+  });
+}
+
+test('report table expectation smoke check under linkedom + modeled styles (not a browser run)', async t => {
+  const modeled = passingReport();
+  modeled.computedStyles = [];
+  const profiles = new Map();
+  for (const c of cases) await t.test(c.id, () => {
+    const doc = stubFixture(c);
+    const before = treeState(doc);
+    const result = pageToMarkdown(doc, { extract: 'full', includeFullPage: true, ...c.options });
+    assert.equal(treeState(doc), before);
+    assert.equal(result.concealmentCheck, c.expected.check);
+    assert.deepEqual(result.concealedText, c.expected.entries);
+    assert.equal(result.warnings.some(w => w.includes('Pending opacity content retained')), c.expected.pending);
+    for (const key of ['markdown', 'fullPageMarkdown']) {
+      for (const [text, present] of Object.entries(c.expected.sentinels)) assert.equal(result[key].includes(text), present, key);
+      if (c.expected.firstLine !== undefined) assert.equal(result[key].split('\n')[0], c.expected.firstLine, key);
+      assert.equal(result[key].includes('Concealed text omitted:'), !!c.expected.entries.length);
+    }
+    if (c.expected.inactiveTabs !== undefined) assert.equal(result.omissions.find(o => o.kind === 'inactive_tabs')?.count, c.expected.inactiveTabs);
+    const row = modeled.cases.find(r => r.id === c.id);
+    row.actual = observeResult(c, result, treeState(doc) === before);
+    row.shows = c.shows; row.expected = describeExpected(c); row.pass = true;
+    if (c.knownLimit) row.knownLimit = true;
+    if (c.provisional) row.provisional = true;
+    row.evidence = [];
+    function snapshot(root, prefix = '') {
+      for (const el of root.querySelectorAll('*')) {
+        if (['STYLE', 'HEAD', 'META'].includes(el.tagName)) continue;
+        const style = doc.defaultView.getComputedStyle(el);
+        const raw = [...FIELDS, ...OPTIONAL_FIELDS].map(f => style[f] ?? null);
+        const key = JSON.stringify(raw);
+        if (!profiles.has(key)) { profiles.set(key, modeled.computedStyles.length); modeled.computedStyles.push(raw); }
+        const name = prefix + (el.id ? `#${el.id}` : `${el.localName}:${row.evidence.length}`);
+        row.evidence.push([name, profiles.get(key), ...(['target', 'inside'].includes(el.id) ? [true] : [])]);
+        if (el.shadowRoot) snapshot(el.shadowRoot, `${name}::shadow/`);
+      }
+    }
+    snapshot(doc);
+  });
+  modeled.summary = scoreReport(modeled);
+  const errors = modeled.cases.map(row => ({ id: row.id, errors: caseErrors(cases.find(c => c.id === row.id), row, modeled) })).filter(row => row.errors.length);
+  t.diagnostic(`Page observation path: ${cases.length - errors.length}/${cases.length} cases without errors; ${JSON.stringify(errors)}`);
+  assert.deepEqual(errors, []);
+  assert.equal(modeled.summary.status, 'PASS');
+  t.diagnostic(`Modeled-style report payload: ${Buffer.byteLength(JSON.stringify(modeled))} bytes (not browser serialization or HTML build size).`);
+});

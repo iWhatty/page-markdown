@@ -31,6 +31,7 @@
     "typecheck": "npm run build:types && node test/types/real-output.mjs && tsc -p test/types && tsc -p test/types/linkedom",
     "size": "node bench/size.mjs",
     "test:browser": "node test/browser/run.mjs",
+    "report:build": "node test/browser/build-report.mjs",
     "ci": "npm test && npm run typecheck && npm run size",
     "prepack": "npm run build:types",
     "prepublishOnly": "npm run ci",

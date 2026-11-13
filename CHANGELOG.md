@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Build the live-style report with `npm run report:build`, then open `.browser-test/concealment-report.html` in an already running browser.
+
 - **Provisional:** supported source-document computed styles now separate
   `display:none`, hidden/collapsed visibility, zero opacity, zero font size and
   supported empty clips (including nonzero zero-area rects; legacy `clip`
