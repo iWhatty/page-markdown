@@ -67,7 +67,7 @@ function hasTopHeading(markdown) {
  * @property {number} [minExtractShare=0.4] when Readability keeps less than this
  *   share of the page's main content, use the main content instead; 0 turns it off
  * @property {boolean} [includeFullPage=false] also return the full-page Markdown
- * @property {boolean} [detectConcealedText=true] provisional live computed-style check; false restores static processing
+ * @property {boolean} [detectConcealedText=false] opt-in live computed-style check, default false
  * @property {boolean} [includeTitle=true] start readable output with "# <headline>"
  * @property {boolean} [recoverLead=true] restore a dropped lead paragraph that matches the meta description
  * @property {boolean} [pageFacts=false] append "## Page facts": short label/value pairs
@@ -97,7 +97,7 @@ export function pageToMarkdown(input, options = {}) {
 
   const { document: inert, omissions, concealment } = sanitizeToInertDocument(input, {
     ...options.sanitize,
-    detectConcealedText: options.detectConcealedText ?? options.sanitize?.detectConcealedText ?? true,
+    detectConcealedText: options.detectConcealedText ?? options.sanitize?.detectConcealedText ?? false,
   });
   const standardization = standardizeDocument(inert, { url: baseUrl(doc, url), concealment });
   if (concealment.pendingOpacity) warnings.push(`Pending opacity content retained in ${concealment.pendingOpacity} element(s): provisional scroll-reveal policy`);

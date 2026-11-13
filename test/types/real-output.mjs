@@ -38,7 +38,7 @@ function builtPages() {
   const hidden = `${cp(0xE0041, 0xE0042)} ${cp(0xFE00, 0xFE01, 0xFE02, 0xFE03)} ${cp(0x2061, 0x2062, 0x2063)} ${cp(0xE0080, 0xE0081)}`;
   const json = JSON.stringify({ a: 1, b: "x".repeat(2000) });
   return [
-    [concealed, { extract: "full" }],
+    [concealed, { extract: "full", detectConcealedText: true }],
     [shadow, { extract: "full", sanitize: { shadowNodeLimit: 1 } }],
     [parse(`<html><body><p>${LOREM}</p><p>${json}</p></body></html>`), { extract: "full" }],
     [parse(`<html><body><p>${LOREM} ${hidden}</p></body></html>`), { extract: "full", removeHiddenText: true, includeFullPage: true }],

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
 import { sanitizeToInertDocument } from '../src/sanitize.js';
 
-function measure(depth, concealed = false, varied = false) {
+function measure(depth, concealed = false, varied = false, options = { detectConcealedText: true }) {
   const containers = depth - 3;
   const leaves = 2000 - 3 - containers;
   const { document } = parseHTML('<html><head></head><body>' + '<div>'.repeat(containers)
@@ -36,9 +36,13 @@ function measure(depth, concealed = false, varied = false) {
   Set.prototype.add = function(...args) { detectorWrite(); return add.apply(this, args); };
   let capture;
   try {
-    capture = sanitizeToInertDocument(document);
+    capture = sanitizeToInertDocument(document, options);
     capture.concealment.lift(capture.document);
   } finally { Map.prototype.set = set; Set.prototype.add = add; }
+  if (capture.concealment.check === 'disabled') return {
+    check: capture.concealment.check, counters: capture.concealment.counters, writes,
+    calls: calls.size, reads: reads.size,
+  };
   assert.equal(capture.concealment.check, 'computed');
   assert.equal(capture.concealment.entries.length, concealed ? 1 : 0);
   assert.equal(document.querySelectorAll('*').length, 2000);
@@ -53,6 +57,17 @@ function measure(depth, concealed = false, varied = false) {
     calls: [...calls.values()], reads: [...reads.values()].flatMap(m => [...m.values()]),
     total: [...reads.values()].reduce((sum, m) => sum + [...m.values()].reduce((a, b) => a + b, 0), 0) };
 }
+
+test('default disabled detector makes zero style calls, reads or collection writes', () => {
+  for (const depth of [6, 30]) for (const options of [{}, { detectConcealedText: false }]) {
+    const result = measure(depth, true, false, options);
+    assert.equal(result.check, 'disabled');
+    assert.equal(result.calls, 0);
+    assert.equal(result.reads, 0);
+    assert.equal(result.writes, 0);
+    assert.ok(Object.values(result.counters).every(n => n === 0));
+  }
+});
 
 test('concealed style calls and property reads stay bounded on both depth fixtures', t => {
   // Before slice 4 (probe included): depth 30 = 19,949; depth 6 = 19,997.

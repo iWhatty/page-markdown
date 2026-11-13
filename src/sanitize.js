@@ -10,7 +10,7 @@ export const DEFAULT_SANITIZE_OPTIONS = Object.freeze({
   stripMeta: true,
   stripLinkTags: true,
   stripAds: true,
-  detectConcealedText: true,
+  detectConcealedText: false,
   // App-specific overlays or widgets to drop, e.g. "[data-app-overlay]".
   extraStripSelectors: [],
   shadowNodeLimit: 5000,

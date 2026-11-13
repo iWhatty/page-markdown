@@ -1,6 +1,6 @@
 // Expectations mirror the named tests in test/contract.test.mjs. Browser-only
 // extensions are identified below; keep these references when changing either.
-export const SCOPE = 'Synthetic browser behaviour, computed serialization and local timing only. This does not establish real-site prevalence, visual correctness, or approval of default-on or the scroll-reveal rule; those rulings await real-site evidence.';
+export const SCOPE = 'Synthetic browser behaviour, computed serialization and local timing only. This does not establish real-site prevalence, visual correctness, or validation of the provisional scroll-reveal rule; real-site evidence is still required. Detection is opt-in for 0.3.0; default-on is withdrawn and reconsidered after the real-site trial.';
 export const FIELDS = ['display', 'visibility', 'opacity', 'fontSize', 'position', 'clip', 'clipPath', 'transitionProperty', 'transitionDuration', 'animationName', 'animationDuration', 'color', 'backgroundColor', 'backgroundImage', 'backgroundClip', 'textShadow'];
 export const OPTIONAL_FIELDS = ['webkitBackgroundClip', 'webkitTextFillColor', 'webkitTextStrokeWidth'];
 export const cases = [];
@@ -8,7 +8,7 @@ const entry = (reason, text) => ({ reason, text: text.slice(0, 2048), chars: tex
 function add(group, name, css, reason = null, extra = {}) {
   const id = `${group}-${name}`;
   const text = `Sentinel${id.replaceAll('-', '')}731`;
-  cases.push({ id, group, shows: name.replaceAll('-', ' '), css: `.target{${css}}`,
+  cases.push({ id, group, options: { detectConcealedText: true }, shows: name.replaceAll('-', ' '), css: `.target{${css}}`,
     html: `<main><p class="target" id="target">${text}</p></main>`,
     expected: { check: 'computed', entries: reason ? [entry(reason, text)] : [],
       sentinels: { [text]: !reason }, pending: false }, ...extra });
@@ -136,6 +136,8 @@ spoof.html = spoof.html.replace('id="target"', 'id="target" data-page-markdown-c
 // "concealed states, opt-out, partial failure and custom extractor marks".
 const off = add('I', 'opt-out', 'opacity:0', null, { options: { detectConcealedText: false } });
 off.expected.check = 'disabled';
+const defaultOff = add('I', 'default-disabled', 'opacity:0', null, { options: {} });
+defaultOff.expected.check = 'disabled';
 // "concealed colour resolves external root, slots and shadow hosts".
 const shadow = add('J', 'shadow-slot', 'color:white');
 shadow.html = '<main><x-host id="host"><p id="target" class="target">SlotSecret601</p></x-host></main>';

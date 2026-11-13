@@ -14,7 +14,7 @@ export {};
  * @property {boolean} [stripMeta]
  * @property {boolean} [stripLinkTags]
  * @property {boolean} [stripAds]
- * @property {boolean} [detectConcealedText] provisional computed-style check, default true
+ * @property {boolean} [detectConcealedText] opt-in computed-style check, default false
  * @property {readonly string[]} [extraStripSelectors] app-specific overlays or widgets to drop, e.g. "[data-app-overlay]"
  * @property {number} [shadowNodeLimit]
  * @property {number} [shadowCharLimit]

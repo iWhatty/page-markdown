@@ -100,6 +100,52 @@ The stages are also exported for advanced use: `sanitizeToInertDocument`,
 
 A `?` marks a field that is absent, not empty, when it doesn't apply.
 
+### Concealed text (opt-in)
+
+Detection is off by default. Enable it for a live document:
+
+```js
+const result = pageToMarkdown(document, {
+  detectConcealedText: true,
+  includeFullPage: true,
+});
+```
+
+Supported computed styles separate concealed DOM text from the article and
+return it in `concealedText` as `{ reason, chars, text }` blocks. Text is capped
+at 2,048 UTF-16 units per block, 16,384 total and 100 entries;
+`concealedTextTruncated` reports capping. Omission counts and character totals
+are uncapped. A `Concealed text omitted:` notice appears in both `markdown`
+and `fullPageMarkdown` when text is captured.
+
+The seven reasons are `display_none`, `visibility_hidden`, `opacity_zero`,
+`font_size_zero`, `clipped`, `transparent_text` and `same_color`. Supported
+clips are zero-area legacy rectangles on absolute/fixed elements,
+`inset(50%)` and zero-radius circles. Colour checks compare computed sRGB
+rgb()/rgba() values for an element's own text against its own or nearest
+declared opaque background.
+
+`concealmentCheck` is `disabled` by default (no computed-style calls),
+`static-only` when enabled without a computed-style API, `computed` after a
+successful check, or `incomplete` if the capability probe or a consulted
+property fails. Detection applies to live documents only; enabled static
+input retains its previous output. A top-level `detectConcealedText` option
+takes precedence over `sanitize.detectConcealedText`, then the default false.
+
+Limits include white text with no declared opaque background, non-zero alpha,
+near-colour matches, and unparsed OKLCH and Display P3 colours. Intervening
+images or translucent backgrounds and uncertain text painting effects prevent
+colour equality detection. Existing short inactive tab, collapsed answer and
+code wrapper exceptions remain; independent concealment reasons still apply.
+Off-screen or covered text, attributes, metadata and custom-extractor output
+are outside this check.
+
+The scroll-reveal rule is **provisional**: zero-opacity content with an
+opacity-applicable transition or named animation of nonzero duration stays
+in place with a warning. A declaration does not prove it will appear, and a
+page can use one to evade detection. Real-site validation is still required.
+Chrome is the only browser tested; Firefox and Safari are untested.
+
 ### TypeScript
 
 Types ship with the package, generated from the JSDoc in `src`: `pageToMarkdown`,

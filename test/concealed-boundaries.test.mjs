@@ -5,7 +5,7 @@ import { sanitizeToInertDocument } from '../src/sanitize.js';
 import { prepareConcealment } from '../src/standardize.js';
 
 function capture(doc, root = doc) {
-  const result = sanitizeToInertDocument(root);
+  const result = sanitizeToInertDocument(root, { detectConcealedText: true });
   prepareConcealment(result.document, result.concealment);
   return result;
 }
@@ -16,7 +16,7 @@ test('shadow node budget counts stripped children at the traversal gate', () => 
   doc.querySelector('x-host').attachShadow({ mode: 'open' }).innerHTML =
     '<div><style></style><p>Visible</p></div>';
   for (const [shadowNodeLimit, text, shadowHosts] of [[3, '', 1], [4, 'Visible', 0]]) {
-    const result = sanitizeToInertDocument(doc, { shadowNodeLimit });
+    const result = sanitizeToInertDocument(doc, { detectConcealedText: true, shadowNodeLimit });
     prepareConcealment(result.document, result.concealment);
     assert.equal(result.document.querySelector('x-host').textContent, text);
     assert.deepEqual(result.omissions, { shadowHosts });
@@ -32,7 +32,7 @@ test('shadow character budget includes computed hidden compatibility attributes'
     [65, [], 1],
     [71, [{ reason: 'display_none', text: 'Secret', chars: 6 }], 0],
   ]) {
-    const result = sanitizeToInertDocument(doc, { shadowCharLimit });
+    const result = sanitizeToInertDocument(doc, { detectConcealedText: true, shadowCharLimit });
     prepareConcealment(result.document, result.concealment);
     assert.deepEqual(result.concealment.entries, entries);
     assert.deepEqual(result.omissions, { shadowHosts });

@@ -4,14 +4,17 @@
 
 - Build the live-style report with `npm run report:build`, then open `.browser-test/concealment-report.html` in an already running browser.
 
-- **Provisional:** supported source-document computed styles now separate
+- **Opt-in:** enable `detectConcealedText: true` to separate text concealed by
+  supported live source-document computed styles:
   `display:none`, hidden/collapsed visibility, zero opacity, zero font size and
   supported empty clips (including nonzero zero-area rects; legacy `clip`
   requires absolute/fixed positioning), transparent text and text exactly
   matching its own or nearest opaque background
   into capped `concealedText`, with uncapped omission
-  counts and notices in both Markdown outputs. `detectConcealedText: false`
-  restores previous processing. Static documents retain previous output.
+  counts and notices in both Markdown outputs. Detection is off by default;
+  HELIOS enables it explicitly. Default-on is withdrawn for 0.3.0 and will be
+  reconsidered after a real-site trial. Disabled detection makes no style calls.
+  Static documents retain previous output.
   Whitespace-only groups are excluded from entries, totals, truncation and
   notices, also correcting slice 1; substantive groups retain original
   whitespace and UTF-16 counts.
@@ -23,12 +26,15 @@
   Short tabs and existing answer/code exceptions remain; independent reasons
   still lift text and can change extraction choice and tab omissions.
   Opacity-applicable transitions and named animations with nonzero durations
-  retain text with a warning; that provisional rule and default-on await
-  operator live-style evidence and Astra review.
+  retain text with a warning; this scroll-reveal rule remains provisional
+  pending real-site evidence and Astra review.
   Colour detection handles computed sRGB rgb()/rgba() only, for own text.
   OKLCH and Display P3 computed colours are not parsed, so even white text on
-  white in those forms can stay in the output. The earlier Chrome measurement
-  used the unoptimised code; this candidate has no browser measurement yet.
+  white in those forms can stay in the output. At commit `2a3b0b5`, Chrome 157,
+  on 20,006 elements, detection added 442 ms on the deep tree (1068 against
+  626 ms) and 340 ms on the shallow tree (1161 against 821 ms). The targets
+  of at most 25% and 250 ms added were not met. The fast path that followed
+  has not been measured in a browser yet.
   Chrome is the only browser tested; Firefox and
   Safari are untested.
   Unknown colours, missing opaque backgrounds, intervening translucent layers

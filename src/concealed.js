@@ -72,9 +72,9 @@ function clipped(clipPath, clip = AUTO, position) {
 /** @param {Document} doc @param {boolean} enabled */
 export function createConcealmentWalk(doc, enabled) {
   const view = doc.defaultView;
+  const active = enabled && typeof view?.getComputedStyle === "function";
   /** @type {import('./types.js').ConcealmentCheck} */
-  let check = !enabled ? "disabled" : typeof view?.getComputedStyle === "function" ? "computed" : "static-only";
-  const active = check === "computed";
+  let check = !enabled ? "disabled" : active ? "computed" : "static-only";
   const exemptions = new Set(), computedHidden = new Set(), records = new Map();
   const cleanups = new Map(), planted = new Set(), images = new Map(), colours = new Map();
   const pending = new Set();
@@ -193,7 +193,7 @@ export function createConcealmentWalk(doc, enabled) {
   function inherit(work, child, clone) {
     // Flattened assignments can omit slot carriers; templates break the source
     // parent relation. Only those exceptional edges reconstruct a source path.
-    const actual = isText(child) ? child.assignedSlot || child[DOM_PARENT_ELEMENT] : parent(child);
+    const actual = active && (isText(child) ? child.assignedSlot || child[DOM_PARENT_ELEMENT] : parent(child));
     if (!active || actual === work[8]) return work;
     slow();
     const adjusted = [,, 0, 0, 0, false, 0, 0, null];

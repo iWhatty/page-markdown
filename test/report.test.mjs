@@ -154,7 +154,7 @@ test('raw property inventory stays aligned with concealed.js reads', () => {
   assert.deepEqual(OPTIONAL_FIELDS, fields.slice(16));
   assert.equal(cases.length, new Set(cases.map(c => c.id)).size);
   assert.deepEqual(Object.fromEntries('ABCDEFGHIJ'.split('').map(g => [g, cases.filter(c => c.group === g).length])),
-    { A: 11, B: 11, C: 8, D: 12, E: 2, F: 34, G: 4, H: 1, I: 1, J: 1 });
+    { A: 11, B: 11, C: 8, D: 12, E: 2, F: 34, G: 4, H: 1, I: 2, J: 1 });
 });
 
 test('scoring accepts reordered entry keys', () => {
