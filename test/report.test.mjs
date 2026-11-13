@@ -30,7 +30,7 @@ test('report builds one self-contained page with every case and no launcher impo
 // A hand-made observation report: no converter, browser or supplied pass flag.
 function passingReport() {
   const raw = ['block', 'visible', '1', '16px', 'static', 'auto', 'none', 'all', '0s', 'none', '0s', 'rgb(0, 0, 0)', 'rgba(0, 0, 0, 0)', 'none', 'border-box', 'none', null, null, null];
-  return { schema: 1, scope: SCOPE, metadata: { userAgent: 'hand-made test report', version: '0.2.0', commit: 'a'.repeat(40), builtAt: '2026-11-13T12:00:00Z', visibility: 'visible', viewport: { width: 800, height: 600 } },
+  const report = { schema: 1, scope: SCOPE, metadata: { userAgent: 'hand-made test report', version: '0.2.0', commit: 'a'.repeat(40), builtAt: '2026-11-13T12:00:00Z', visibility: 'visible', viewport: { width: 800, height: 600 } },
     computedProperties: [...FIELDS, ...OPTIONAL_FIELDS], computedStyles: [raw],
     frameContexts: [{ viewport: { width: 640, height: 180 }, visibility: 'visible' }],
     cases: cases.map(c => ({ id: c.id, context: 0,
@@ -47,7 +47,36 @@ function passingReport() {
     performance: { complete: true, backgrounded: false, on: [2, 4, 3, 5, 1], off: [1, 2, 3, 2, 4], warmups: [5, 4],
       visibility: 'visible', viewport: { width: 640, height: 180 },
       elementCount: 20006, depth: 33, order: [true, false, ...Array.from({ length: 5 }, () => [true, false]).flat()] } };
+  report.performance.shallow = { ...structuredClone(report.performance), depth: 8 };
+  return report;
 }
+
+test('report requires both timing trees and keeps targets outside PASS', () => {
+  for (const mutate of [
+    r => { delete r.performance.shallow; },
+    r => { r.performance.shallow.on.pop(); },
+    r => { r.performance.shallow.warmups = []; },
+    r => { r.performance.shallow.backgrounded = true; },
+    r => { r.performance.shallow.depth = 34; },
+    r => { r.performance.shallow.elementCount--; },
+    r => { r.performance.shallow.order.reverse(); },
+  ]) {
+    const report = passingReport(); mutate(report);
+    assert.equal(scoreReport(report).status, 'FAIL');
+  }
+  const report = passingReport();
+  report.performance.on = [1000, 1000, 1000, 1000, 1000];
+  const score = scoreReport(report);
+  assert.equal(score.status, 'PASS');
+  assert.deepEqual(score.timing.targets, { relative: 'not met', absolute: 'not met' });
+  assert.equal(score.timing.shallow.overheadMs, 1);
+  assert.deepEqual(score.coverageLimits.map(c => c.id), ['C-oklch', 'C-display-p3']);
+  for (const id of ['C-oklch', 'C-display-p3']) {
+    const changed = passingReport();
+    changed.cases.find(c => c.id === id).actual.concealedText = [{ reason: 'same_color', chars: 1, text: 'x' }];
+    assert.deepEqual(scoreReport(changed).failures, [id], 'coverage limit retains its assertions');
+  }
+});
 test('score CLI recomputes a passing and failing hand-made report', () => {
   fs.mkdirSync('.browser-test', { recursive: true });
   const file = path.resolve('.browser-test/score-test.json');

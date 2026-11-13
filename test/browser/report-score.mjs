@@ -73,14 +73,19 @@ export function scoreReport(report) {
   const p = report?.performance;
   const validSamples = list => Array.isArray(list) && list.length === 5 && list.every(n => typeof n === 'number' && Number.isFinite(n) && n > 0);
   let timing = null;
-  if (p?.complete !== true || p?.backgrounded !== false || p?.exception || p?.timedOut || !validSamples(p?.on) || !validSamples(p?.off)
-    || !Array.isArray(p?.warmups) || p.warmups.length !== 2 || !p.warmups.every(n => Number.isFinite(n) && n > 0)
-    || !Number.isInteger(p.elementCount) || !(p.elementCount >= 19000 && p.elementCount <= 21000) || !Number.isInteger(p.depth) || !(p.depth >= 28 && p.depth <= 35)
-    || p.visibility !== 'visible' || !(p.viewport?.width > 0) || !(p.viewport?.height > 0)
-    || !equal(p.order, [true, false, ...Array.from({ length: 5 }, () => [true, false]).flat()])) structural.push('incomplete/invalid timing');
+  const validTiming = (tree, minDepth, maxDepth) => tree?.complete === true && tree?.backgrounded === false && !tree?.exception && !tree?.timedOut && validSamples(tree?.on) && validSamples(tree?.off)
+    && Array.isArray(tree.warmups) && tree.warmups.length === 2 && tree.warmups.every(n => Number.isFinite(n) && n > 0)
+    && Number.isInteger(tree.elementCount) && tree.elementCount >= 19000 && tree.elementCount <= 21000 && Number.isInteger(tree.depth) && tree.depth >= minDepth && tree.depth <= maxDepth
+    && tree.visibility === 'visible' && tree.viewport?.width > 0 && tree.viewport?.height > 0
+    && equal(tree.order, [true, false, ...Array.from({ length: 5 }, () => [true, false]).flat()]);
+  const summarize = tree => {
+    const on = median(tree.on), off = median(tree.off);
+    return { onMedianMs: on, offMedianMs: off, ratio: on / off, overheadMs: on - off };
+  };
+  if (!validTiming(p, 28, 35) || !validTiming(p?.shallow, 6, 10) || p.elementCount !== p.shallow.elementCount) structural.push('incomplete/invalid timing');
   else {
-    const on = median(p.on), off = median(p.off);
-    timing = { onMedianMs: on, offMedianMs: off, ratio: on / off, overheadMs: on - off };
+    timing = { ...summarize(p), shallow: summarize(p.shallow) };
+    timing.targets = { relative: timing.ratio <= 1.25 ? 'met' : 'not met', absolute: timing.overheadMs <= 250 ? 'met' : 'not met' };
   }
   if (report?.exception) structural.push(`page exception: ${report.exception}`);
   const failures = observations.filter(r => !r.knownLimit && r.errors.length).map(r => r.id);
@@ -88,5 +93,6 @@ export function scoreReport(report) {
   return { status: failures.length || structural.length ? 'FAIL' : 'PASS', total: cases.length,
     passed: observations.filter(r => !r.knownLimit && !r.skipped && !r.errors.length).length,
     failures, skipped, knownLimits: observations.filter(r => r.knownLimit),
+    coverageLimits: cases.filter(c => c.coverageLimit).map(c => ({ id: c.id, limit: c.coverageLimit })),
     provisional: observations.filter(r => r.provisional), structural, timing };
 }

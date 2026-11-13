@@ -110,7 +110,14 @@ export {};
 
 /** @typedef {{ label: string, value: string }} PageFact */
 
-/** @typedef {"computed"|"static-only"|"disabled"|"incomplete"} ConcealmentCheck */
+/**
+ * The one-time probe establishes that the document's view can return every
+ * required field and exposed optional field. Afterwards, incomplete means a
+ * CONSULTED value was empty or threw; unread irrelevant values are not checked.
+ * Computed means no such failure; static-only means no computed-style API;
+ * disabled means detection was turned off.
+ * @typedef {"computed"|"static-only"|"disabled"|"incomplete"} ConcealmentCheck
+ */
 /** @typedef {"display_none"|"visibility_hidden"|"opacity_zero"|"font_size_zero"|"clipped"|"transparent_text"|"same_color"} ConcealmentReason */
 /** @typedef {{ reason: ConcealmentReason, chars: number, text: string }} ConcealedText */
 

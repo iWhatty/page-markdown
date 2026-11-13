@@ -25,8 +25,13 @@
   Opacity-applicable transitions and named animations with nonzero durations
   retain text with a warning; that provisional rule and default-on await
   operator live-style evidence and Astra review.
-  Colour detection handles computed sRGB rgb()/rgba() only, for own text;
-  unknown colours, missing opaque backgrounds, intervening translucent layers
+  Colour detection handles computed sRGB rgb()/rgba() only, for own text.
+  OKLCH and Display P3 computed colours are not parsed, so even white text on
+  white in those forms can stay in the output. The earlier Chrome measurement
+  used the unoptimised code; this candidate has no browser measurement yet.
+  Chrome is the only browser tested; Firefox and
+  Safari are untested.
+  Unknown colours, missing opaque backgrounds, intervening translucent layers
   or images, text clipping, differing text fill, shadows and strokes prevent
   equality detection. Fully transparent text fill is detected when no other
   effect paints the text. Near-colour matches and partially transparent text

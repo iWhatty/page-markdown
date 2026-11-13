@@ -77,6 +77,7 @@ for (const [name, value, reason] of [
   const c = add('C', name, `color:${value};background:white`, reason);
   c.support = ['color', value];
   c.allowUnsupported = ['oklch', 'display-p3'].includes(name);
+  if (c.allowUnsupported) c.coverageLimit = `${name === 'oklch' ? 'OKLCH' : 'Display P3'} computed colours are not parsed; white-on-white can remain`;
 }
 // "concealed opacity durations: <label>" and provisional opacity policy.
 // Real vs undefined keyframes are browser-only extensions. Paused at time zero;

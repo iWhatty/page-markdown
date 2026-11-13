@@ -62,6 +62,7 @@ function evidence(doc) {
 }
 async function runCase(c) {
   const row = { id: c.id, shows: c.shows, expected: describeExpected(c),
+    ...(c.coverageLimit ? { coverageLimit: c.coverageLimit } : {}),
     ...(c.knownLimit ? { knownLimit: true } : {}), ...(c.provisional ? { provisional: true } : {}) };
   let frame;
   try {
@@ -87,22 +88,23 @@ async function runCase(c) {
   finally { frame?.remove(); }
   return row;
 }
-async function measure() {
-  const p = { label: 'Local synthetic timing; not a general guarantee', complete: false, backgrounded,
+async function measure(levels, label) {
+  const p = { label, complete: false, backgrounded,
     visibility: document.visibilityState, options: { extract: 'full', includeFullPage: true },
     budgetMs: 60000, limit: 'Checked between synchronous calls; cannot interrupt a blocked call',
     on: [], off: [], warmups: [], order: [] };
   const start = performance.now();
-  // 30 nested containers + 19,970 siblings, with actual stylesheet matching.
-  const html = '<main>' + '<div class="level">'.repeat(30)
-    + Array.from({ length: 19970 }, (_, i) => `<span class="${i % 101 === 0 ? 'concealed' : 'word'}">word${i} </span>`).join('')
-    + '</div>'.repeat(30) + '</main>';
+  // Same total element count. Deep is the original 30 containers + 19,970
+  // siblings; shallow trades containers for siblings (depths 34 and 8).
+  const html = '<main>' + '<div class="level">'.repeat(levels)
+    + Array.from({ length: 20000 - levels }, (_, i) => `<span class="${i % 101 === 0 ? 'concealed' : 'word'}">word${i} </span>`).join('')
+    + '</div>'.repeat(levels) + '</main>';
   const css = 'body{font:16px sans-serif;background:white;color:black}.level{display:block}.word{color:rgb(10,20,30)}.concealed{opacity:0}';
   const order = [true, false, ...Array.from({ length: 5 }, () => [true, false]).flat()];
   try {
     for (const [i, enabled] of order.entries()) {
       if (performance.now() - start >= 60000) { p.timedOut = true; break; }
-      $('progress').textContent = `measuring… ${Math.max(0, i - 1)}/10 samples complete`;
+      $('progress').textContent = `measuring ${label}… ${Math.max(0, i - 1)}/10 samples complete`;
       let frame;
       try {
         frame = await frameFor(html, css, `timing-${i}`);
@@ -163,6 +165,13 @@ function finish() {
   const json = JSON.stringify(report);
   $('report').value = json;
   $('status').textContent = `${report.summary.status} — ${report.summary.passed} passed, ${report.summary.failures.length} case failures, ${report.summary.knownLimits.length} known limits, ${report.summary.skipped.length} skipped, ${report.summary.structural.length} report errors`;
+  $('coverage').textContent = report.summary.coverageLimits.map(c => `${c.id}: ${c.limit}`).join('; ');
+  const timing = report.summary.timing;
+  $('timing').textContent = timing ? ['shallow', 'deep'].map(label => {
+    const p = label === 'deep' ? report.performance : report.performance.shallow;
+    const t = label === 'deep' ? timing : timing.shallow;
+    return `${label}: ${p.elementCount} elements, depth ${p.depth}; on samples ${JSON.stringify(p.on)} ms; off samples ${JSON.stringify(p.off)} ms; warm-ups ${JSON.stringify(p.warmups)} ms; medians on ${t.onMedianMs.toFixed(1)} / off ${t.offMedianMs.toFixed(1)} ms; ratio ${t.ratio.toFixed(3)}; added ${t.overheadMs.toFixed(1)} ms`;
+  }).join('\n') + `\nDeep targets (informational, outside PASS): ≤25% added: ${timing.targets.relative}; ≤250 ms added: ${timing.targets.absolute}` : 'Timing incomplete';
   $('progress').textContent = `Complete. ${new TextEncoder().encode(json).length} report bytes. Tuple encodings are described in JSON encoding. Raw tuples use computedProperties order; evidence[1] indexes computedStyles. Null means an optional property was not exposed.`;
   $('copy').disabled = false;
   $('copy').onclick = async () => {
@@ -180,7 +189,9 @@ async function main() {
     }
     $('progress').textContent = 'measuring…';
     await turn();
-    report.performance = await measure();
+    const shallow = await measure(4, 'shallow');
+    report.performance = await measure(30, 'deep');
+    report.performance.shallow = shallow;
   } catch (error) { report.exception = errorText(error); }
   finish();
 }

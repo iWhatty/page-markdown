@@ -47,6 +47,123 @@ function liveFixture(body, styles = {}) {
 }
 
 const WHITE = "rgb(255, 255, 255)";
+
+for (const [candidate, base, reason] of [
+  ["transparent fill", { webkitTextFillColor: "rgba(0, 0, 0, 0)" }, "transparent_text"],
+  ["same colour", { color: WHITE, backgroundColor: WHITE }, "same_color"],
+]) {
+  for (const [guard, value] of [[null, null], ["backgroundClip", "text"], ["webkitBackgroundClip", "text"],
+    ["textShadow", "rgb(0, 0, 0) 1px 1px 0px"], ["webkitTextStrokeWidth", "1px"]]) {
+    test(`concealed painting candidate ${candidate}, guard ${guard || "none"}`, () => {
+      const text = "PaintingCandidate731";
+      const result = pageToMarkdown(liveFixture(`<p id="s">${text}</p>`, {
+        s: { ...base, ...(guard ? { [guard]: value } : {}) },
+      }), { extract: "full", includeFullPage: true });
+      assert.equal(result.concealmentCheck, "computed");
+      assert.deepEqual(result.concealedText, guard ? [] : [{ reason, text, chars: text.length }]);
+      for (const key of ["markdown", "fullPageMarkdown"]) assert.equal(result[key].includes(text), !!guard);
+    });
+  }
+}
+
+test("concealed later unread irrelevant throwing properties leave check computed", () => {
+  for (const field of ["transitionDuration", "backgroundClip", "webkitBackgroundClip", "textShadow", "webkitTextStrokeWidth"]) {
+    const doc = liveFixture('<p id="s">UnreadRetain731</p>');
+    const original = doc.defaultView.getComputedStyle;
+    doc.defaultView.getComputedStyle = function(el) {
+      const raw = original.call(this, el);
+      if (el.id === "s") Object.defineProperty(raw, field, { get() { throw new Error("irrelevant"); } });
+      return raw;
+    };
+    const result = pageToMarkdown(doc, { extract: "full" });
+    assert.equal(result.concealmentCheck, "computed", `unread ${field}`);
+    assert.match(result.markdown, /UnreadRetain731/);
+    assert.deepEqual(result.concealedText, []);
+  }
+});
+
+test("concealed later consulted empty or throwing values report incomplete and retain text", () => {
+  for (const throws of [false, true]) {
+    const doc = liveFixture('<p id="s">ConsultedRetain731</p>', { s: { color: WHITE, backgroundColor: WHITE } });
+    const original = doc.defaultView.getComputedStyle;
+    doc.defaultView.getComputedStyle = function(el) {
+      const raw = original.call(this, el);
+      if (el.id === "s") Object.defineProperty(raw, "backgroundClip", { get() {
+        if (throws) throw new Error("consulted");
+        return "";
+      } });
+      return raw;
+    };
+    const result = pageToMarkdown(doc, { extract: "full" });
+    assert.equal(result.concealmentCheck, "incomplete");
+    assert.match(result.markdown, /ConsultedRetain731/);
+    assert.deepEqual(result.concealedText, []);
+  }
+});
+
+test("concealed capability probe includes otherwise unused properties", () => {
+  for (const field of ["clip", "transitionDuration", "animationDuration", "color", "textShadow", "webkitTextStrokeWidth"]) {
+    const doc = liveFixture('<p>ProbeRetain731</p>', { probe: { [field]: "" } });
+    doc.documentElement.id = "probe";
+    const result = pageToMarkdown(doc, { extract: "full" });
+    assert.equal(result.concealmentCheck, "incomplete", `full probe includes ${field}`);
+    assert.match(result.markdown, /ProbeRetain731/);
+    assert.deepEqual(result.concealedText, []);
+  }
+});
+
+test("concealed font size applies to text assigned directly to an empty slot", () => {
+  const text = "DirectSlotFont731";
+  const doc = liveFixture(`<main><x-host id="host">${text}</x-host></main>`, { slot: { fontSize: "0px" } });
+  const host = doc.getElementById("host");
+  const root = host.attachShadow({ mode: "open" });
+  root.innerHTML = '<slot id="slot"></slot>';
+  const slot = root.firstChild;
+  const assigned = host.firstChild;
+  slot.assignedNodes = () => [assigned];
+  Object.defineProperty(assigned, "assignedSlot", { value: slot });
+  const result = pageToMarkdown(doc, { extract: "full" });
+  assert.deepEqual(result.concealedText, [{ reason: "font_size_zero", text, chars: text.length }]);
+  assert.doesNotMatch(result.markdown, /DirectSlotFont731/);
+});
+
+// Small observations from Chrome 157's owner-run report at 90e2015.
+// Literal computed strings, independent of the gitignored report and CSS stub.
+for (const [label, style, reason] of [
+  ...["rect(0px, 0px, 0px, 0px)", "rect(1px, 1px, 1px, 1px)"].flatMap(clip =>
+    ["absolute", "fixed", "static"].map(position => [`${clip} ${position}`, { clip, position }, position === "static" ? null : "clipped"])),
+  ["circle", { clipPath: "circle(0px)" }, "clipped"],
+  ["shadow", { color: "rgba(1, 2, 3, 0)", textShadow: "rgb(0, 0, 0) 1px 1px 0px" }, null],
+  ["transparent", { color: "rgba(1, 2, 3, 0)" }, "transparent_text"],
+  ["OKLCH", { color: "oklch(1 0 0)", backgroundColor: WHITE }, null],
+  ["Display P3", { color: "color(display-p3 1 1 1)", backgroundColor: WHITE }, null],
+]) {
+  test(`concealed Chrome computed strings: ${label}`, () => {
+    const text = "ChromeObserved731";
+    const result = pageToMarkdown(liveFixture(`<main><p id="s">${text}</p></main>`, { s: style }), { extract: "full", includeFullPage: true });
+    assert.equal(result.concealmentCheck, "computed");
+    assert.deepEqual(result.concealedText, reason ? [{ reason, text, chars: text.length }] : []);
+    for (const key of ["markdown", "fullPageMarkdown"]) assert.equal(result[key].includes(text), !reason);
+  });
+}
+for (const [label, style, retained] of [
+  ["0.6s transition", { transitionProperty: "opacity", transitionDuration: "0.6s" }, true],
+  ["0.6s animation", { animationName: "reveal", animationDuration: "0.6s" }, true],
+  ["last opacity zero", { transitionProperty: "all, opacity", transitionDuration: "1s, 0s" }, false],
+  ["last all nonzero", { transitionProperty: "opacity, all", transitionDuration: "0s, 1s" }, true],
+  ["duplicate last zero", { transitionProperty: "opacity, opacity", transitionDuration: "1s, 0s" }, false],
+  ["repeat 0.02s", { transitionProperty: "transform, opacity", transitionDuration: "0.02s" }, true],
+  ["excess duration", { transitionProperty: "opacity", transitionDuration: "0s, 1s" }, false],
+]) {
+  test(`concealed Chrome computed durations: ${label}`, () => {
+    const text = "ChromeDuration731";
+    const result = pageToMarkdown(liveFixture(`<main><p id="s">${text}</p></main>`, { s: { opacity: "0", ...style } }), { extract: "full" });
+    assert.equal(result.concealmentCheck, "computed");
+    assert.equal(result.markdown.includes(text), retained);
+    assert.deepEqual(result.concealedText, retained ? [] : [{ reason: "opacity_zero", text, chars: text.length }]);
+    assert.equal(result.warnings.some(w => w.includes("Pending opacity content retained")), retained);
+  });
+}
 const whitespaceReasons = [
   ["display_none", { display: "none" }, "A"],
   ["font_size_zero", { fontSize: "0px" }, "A"],
