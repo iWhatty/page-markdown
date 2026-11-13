@@ -10,9 +10,33 @@ export const CONCEALED_ENTRY_LIMIT = 100;
 // text, another block or another reason ends it. Each captured text node is
 // visited once, so nested signals never double-count. Precedence is below.
 /** @type {import('./types.js').ConcealmentReason[]} */
-const REASONS = ["display_none", "visibility_hidden", "opacity_zero", "font_size_zero", "clipped"];
+const REASONS = ["display_none", "visibility_hidden", "opacity_zero", "font_size_zero", "clipped", "transparent_text", "same_color"];
 const BLOCK = /^(?:address|article|aside|blockquote|body|dd|div|dl|dt|figcaption|figure|h[1-6]|li|main|ol|p|pre|section|table|td|th|tr|ul)$/;
-const FIELDS = ["display", "visibility", "opacity", "fontSize", "position", "clip", "clipPath", "transitionProperty", "transitionDuration", "animationName", "animationDuration"];
+const FIELDS = ["display", "visibility", "opacity", "fontSize", "position", "clip", "clipPath", "transitionProperty", "transitionDuration", "animationName", "animationDuration", "color", "backgroundColor", "backgroundImage", "backgroundClip", "textShadow"];
+const OPTIONAL_FIELDS = ["webkitBackgroundClip", "webkitTextFillColor", "webkitTextStrokeWidth"];
+const LOCAL_TEXT = ["visibility_hidden", "font_size_zero", "transparent_text", "same_color"];
+
+// No reusable colour parser in this package or its installed dependencies.
+// Computed sRGB only; reject unsupported syntax rather than guessing a colour.
+function colour(value) {
+  const match = /^(rgb|rgba)\(([^()]+)\)$/.exec(value || "");
+  if (!match) return null;
+  const comma = match[2].includes(",");
+  const parts = comma ? match[2].split(/\s*,\s*/).map((part) => part.trim())
+    : match[2].trim().replace(/\s*\/\s*/g, " / ").split(/\s+/);
+  if (!comma && parts.length === 5 && parts[3] === "/") parts.splice(3, 1);
+  if (parts.length !== 3 && parts.length !== 4) return null;
+  if (comma ? parts.length !== (match[1] === "rgba" ? 4 : 3)
+    : match[1] !== "rgb" || (parts.length === 4 && !match[2].includes("/"))) return null;
+  if (parts.some((part, i) => !(i === 3 ? /^(?:\d*\.)?\d+%?$/ : /^(?:\d*\.)?\d+$/).test(part))) return null;
+  const values = parts.map((part, i) => parseFloat(part) / (i === 3 && part.endsWith("%") ? 100 : 1));
+  if (values.some((n, i) => n < 0 || n > (i === 3 ? 1 : 255))) return null;
+  if (values.length === 3) values.push(1);
+  return values;
+}
+function equalColour(a, b) {
+  return !!a && !!b && a.every((n, i) => n === b[i]);
+}
 
 // Provisional scroll-reveal policy. A named animation may affect opacity; its
 // name is not evidence of its keyframes or that content will ever appear.
@@ -36,12 +60,13 @@ function parent(el) {
   return el.assignedSlot || el.parentElement || el.getRootNode?.().host || null;
 }
 
-// Supported clips only: legacy rect with all four coordinates zero (unitless
-// or px, comma/space separated), inset(50%) and circle(0 [at ...]), zero px or
+// Supported clips only: zero-area legacy rect (unitless zero or px,
+// comma/space separated), inset(50%) and circle(0 [at ...]), zero px or
 // percent radius. No geometry, polygons, masks, overflow or off-screen tests.
-// Slice 1 misses zero-area rects at non-zero coordinates, e.g. rect(1px, 1px, 1px, 1px).
 function clipped(style) {
-  return (["absolute", "fixed"].includes(style.position) && /^rect\(\s*0(?:px)?(?:[\s,]+0(?:px)?){3}\s*\)$/.test(style.clip))
+  const rect = /^rect\(\s*((?:-?(?:\d*\.)?\d+px|0)(?:[\s,]+(?:-?(?:\d*\.)?\d+px|0)){3})\s*\)$/.exec(style.clip || "");
+  const edges = rect?.[1].split(/[\s,]+/).map(parseFloat);
+  return (["absolute", "fixed"].includes(style.position) && edges && (edges[0] === edges[2] || edges[1] === edges[3]))
     || /^inset\(\s*50%\s*\)$/.test(style.clipPath)
     || /^circle\(\s*0(?:px|%)?(?:\s+at\s+[^)]+)?\s*\)$/.test(style.clipPath);
 }
@@ -53,6 +78,7 @@ export function createConcealment(doc, enabled) {
   let check = !enabled ? "disabled" : typeof view?.getComputedStyle === "function" ? "computed" : "static-only";
   const active = check === "computed";
   const styles = new Map();
+  const backgrounds = new Map();
   const localReasons = new Map();
   const copies = new Map();
   const exemptions = new Set();
@@ -71,7 +97,9 @@ export function createConcealment(doc, enabled) {
       // Capability requires a callable source-view method returning nonempty
       // strings for every property used. Partial reads are incomplete, and
       // only successfully read, recognized values can establish concealment.
-      for (const field of FIELDS) {
+      // Unsupported prefixed properties cannot paint text. Read them only if
+      // exposed; an exposed but unavailable value still makes this incomplete.
+      for (const field of [...FIELDS, ...OPTIONAL_FIELDS.filter((field) => raw && field in raw)]) {
         try {
           result[field] = typeof raw?.[field] === "string" ? raw[field].trim().toLowerCase() : "";
         } catch { result[field] = ""; }
@@ -80,6 +108,31 @@ export function createConcealment(doc, enabled) {
     } catch { check = "incomplete"; }
     styles.set(el, result);
     return result;
+  }
+
+  function background(el, seen = new Set()) {
+    if (!el || seen.has(el)) return null; // no assumed root canvas
+    if (backgrounds.has(el)) return backgrounds.get(el);
+    seen.add(el);
+    const s = style(el);
+    const c = colour(s.backgroundColor);
+    const resolved = s.backgroundImage !== "none" || !c ? null
+      : c[3] === 1 ? c : c[3] === 0 ? background(parent(el), seen) : null;
+    backgrounds.set(el, resolved);
+    return resolved;
+  }
+
+  function textColour(el, s) {
+    if (!s.backgroundClip || s.backgroundClip.split(/\s*,\s*/).includes("text")
+      || s.webkitBackgroundClip === "" || s.webkitBackgroundClip?.split(/\s*,\s*/).includes("text")
+      || s.textShadow !== "none"
+      || (s.webkitTextStrokeWidth !== undefined && !/^0(?:\.0+)?px$/.test(s.webkitTextStrokeWidth))) return;
+    const c = colour(s.color);
+    if (!c) return;
+    const fill = s.webkitTextFillColor === undefined ? c : colour(s.webkitTextFillColor);
+    if (!fill || (fill[3] !== 0 && !equalColour(c, fill))) return;
+    if (fill[3] === 0) return "transparent_text";
+    if (equalColour(c, background(el))) return "same_color";
   }
 
   function local(el) {
@@ -94,6 +147,11 @@ export function createConcealment(doc, enabled) {
     }
     if (/^0(?:\.0+)?px$/.test(s.fontSize || "")) reasons.push("font_size_zero");
     if (clipped(s)) reasons.push("clipped");
+    // Colour belongs to this element's own text, never its overriding children.
+    if (Array.from(el.childNodes || []).some((node) => node.nodeType === 3 && node.nodeValue)) {
+      const reason = textColour(el, s);
+      if (reason) reasons.push(reason);
+    }
     localReasons.set(el, reasons);
     return reasons;
   }
@@ -114,7 +172,7 @@ export function createConcealment(doc, enabled) {
       const seen = new Set();
       for (let el = live.assignedSlot || live.parentElement; el && !seen.has(el); el = parent(el)) {
         seen.add(el);
-        const reasons = local(el).filter((r) => chain.length === 0 || !["visibility_hidden", "font_size_zero"].includes(r));
+        const reasons = local(el).filter((r) => chain.length === 0 || !LOCAL_TEXT.includes(r));
         chain.push({ el, reasons });
       }
       records.set(clone, chain);
@@ -152,7 +210,7 @@ export function createConcealment(doc, enabled) {
         const signals = carrier ? (carrier.getAttribute(CONCEALED_MARK) || "").split(" ") : detected;
         for (const reason of signals) {
           if (!detected.includes(reason) && carrier && !REASONS.includes(reason)) continue;
-          if (chain[0].el !== el && ["visibility_hidden", "font_size_zero"].includes(reason)) continue;
+          if (chain[0].el !== el && LOCAL_TEXT.includes(reason)) continue;
           if (exemptions.has(carrier) && ["display_none", "visibility_hidden"].includes(reason)) continue;
           // Computed visibility is inherited. Attribute the uninterrupted
           // hidden chain to its outermost hidden ancestor, so the existing
@@ -181,15 +239,23 @@ export function createConcealment(doc, enabled) {
       let block = clone.parentElement;
       while (block?.parentElement && !BLOCK.test(block.localName)) block = block.parentElement;
       if (!previous || previous.block !== block || previous.reason !== reason) {
-        previous = { block, reason, text: "" };
+        previous = { block, reason, text: "", nodes: /** @type {Text[]} */ ([]) };
         groups.push(previous);
       }
       previous.text += clone.nodeValue || "";
-      clone.remove();
+      previous.nodes.push(clone);
     }
     let stored = 0;
-    for (const { reason, text } of groups) {
-      if (!text.length) continue;
+    for (const { reason, text, nodes } of groups) {
+      // Use the selected reason and raw run boundaries before report capping.
+      // A removes all source whitespace; B preserves whitespace-only runs and
+      // replaces substantive runs with one space only at a source boundary.
+      const removesWhitespace = reason === "display_none" || reason === "font_size_zero";
+      const substantive = !!text.trim();
+      if (!removesWhitespace && !substantive) continue;
+      if (!removesWhitespace && /^\s|\s$/.test(text)) nodes[0].before(inert.createTextNode(" "));
+      for (const node of nodes) node.remove();
+      if (!substantive) continue;
       summary.count += 1;
       summary.chars += text.length;
       const captured = text.slice(0, Math.min(CONCEALED_BLOCK_LIMIT, CONCEALED_TOTAL_LIMIT - stored));

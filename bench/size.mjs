@@ -21,8 +21,11 @@ const TARGET_MIN_BYTES = 60 * 1024;
 // 76.8 KB: linked headings, note labels, spanned table cells and single captions.
 // Raised to 84 KB when the bundle reached 83.0 KB: concealed-text detection from
 // computed style (five reasons, 5.3 KB over the 77.7 KB before it). Owner's
-// decision, 2026-11-12. It sets nothing aside for the colour check.
-const BUDGET_MIN_BYTES = 84 * 1024;
+// decision, 2026-11-12. Raised to 86 KB when the bundle reached 84.9 KB: the
+// colour check (transparent and same-colour text, with the guards that leave
+// gradient headings alone) and the source-whitespace rule. Owner's decision,
+// 2026-11-13.
+const BUDGET_MIN_BYTES = 86 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],

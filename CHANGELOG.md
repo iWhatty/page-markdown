@@ -4,16 +4,33 @@
 
 - **Provisional:** supported source-document computed styles now separate
   `display:none`, hidden/collapsed visibility, zero opacity, zero font size and
-  supported empty clips (legacy `clip` requires absolute/fixed positioning)
+  supported empty clips (including nonzero zero-area rects; legacy `clip`
+  requires absolute/fixed positioning), transparent text and text exactly
+  matching its own or nearest opaque background
   into capped `concealedText`, with uncapped omission
   counts and notices in both Markdown outputs. `detectConcealedText: false`
   restores previous processing. Static documents retain previous output.
+  Whitespace-only groups are excluded from entries, totals, truncation and
+  notices, also correcting slice 1; substantive groups retain original
+  whitespace and UTF-16 counts.
+  Source whitespace is removed for display-none and zero-font-size runs; other
+  reasons retain whitespace-only runs and replace substantive runs with one
+  ordinary space only when their original text starts or ends with JavaScript
+  whitespace.
   The check reports computed, static-only, disabled or incomplete capability.
   Short tabs and existing answer/code exceptions remain; independent reasons
   still lift text and can change extraction choice and tab omissions.
   Opacity-applicable transitions and named animations with nonzero durations
   retain text with a warning; that provisional rule and default-on await
   operator live-style evidence and Astra review.
+  Colour detection handles computed sRGB rgb()/rgba() only, for own text;
+  unknown colours, missing opaque backgrounds, intervening translucent layers
+  or images, text clipping, differing text fill, shadows and strokes prevent
+  equality detection. Fully transparent text fill is detected when no other
+  effect paints the text. Near-colour matches and partially transparent text
+  with non-zero alpha (including alpha 0.01) are not detected. White text on a
+  page with no declared
+  opaque background is not detected: the root background is unknown.
 
 - Boxes a page marks as skippable are left out of the article: a box that opens with a
   link to the end marker it closes with, as BBC's "most read" and podcast boxes do in
