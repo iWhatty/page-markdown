@@ -14,6 +14,7 @@ export {};
  * @property {boolean} [stripMeta]
  * @property {boolean} [stripLinkTags]
  * @property {boolean} [stripAds]
+ * @property {boolean} [detectConcealedText] provisional computed-style check, default true
  * @property {readonly string[]} [extraStripSelectors] app-specific overlays or widgets to drop, e.g. "[data-app-overlay]"
  * @property {number} [shadowNodeLimit]
  * @property {number} [shadowCharLimit]
@@ -69,11 +70,13 @@ export {};
  */
 
 /**
- * Check `kind` before reading `chars`: only hidden-text omissions have it.
+ * Check `kind` before reading `chars`: hidden Unicode omissions use code points;
+ * concealed_text uses UTF-16 units. Other kinds do not have it.
  * @typedef {{ kind: "shadow_content", count: number, note: string }
  *   | { kind: "json_line", count: number, note: string }
  *   | { kind: "inactive_tabs", count: number, note: string }
  *   | { kind: "comments", count: number, note: string }
+ *   | { kind: "concealed_text", count: number, chars: number, note: string }
  *   | HiddenTextOmission} PageMarkdownOmission
  */
 
@@ -93,6 +96,9 @@ export {};
 /**
  * @typedef {object} PageMarkdownResult
  * @property {string} version the package version that made this result
+ * @property {ConcealedText[]} concealedText capped captured blocks, raw text in UTF-16 units
+ * @property {ConcealmentCheck} concealmentCheck source computed-style capability
+ * @property {boolean} concealedTextTruncated true if any block, text or entry cap omitted report text
  * @property {string} markdown
  * @property {PageMarkdownMetadata} metadata
  * @property {PageMarkdownExtraction} extraction
@@ -103,6 +109,10 @@ export {};
  */
 
 /** @typedef {{ label: string, value: string }} PageFact */
+
+/** @typedef {"computed"|"static-only"|"disabled"|"incomplete"} ConcealmentCheck */
+/** @typedef {"display_none"|"visibility_hidden"|"opacity_zero"|"font_size_zero"|"clipped"} ConcealmentReason */
+/** @typedef {{ reason: ConcealmentReason, chars: number, text: string }} ConcealedText */
 
 /**
  * @typedef {string | string[] | ((node: HTMLElement, options: Record<string, unknown>) => boolean)} TurndownFilter

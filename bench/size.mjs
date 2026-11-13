@@ -19,7 +19,10 @@ const TARGET_MIN_BYTES = 60 * 1024;
 // icon-only table cells, kept site menus, lost sections, collapsed answers). Raise
 // it again only deliberately, with a reason.
 // 76.8 KB: linked headings, note labels, spanned table cells and single captions.
-const BUDGET_MIN_BYTES = 78 * 1024;
+// Raised to 84 KB when the bundle reached 83.0 KB: concealed-text detection from
+// computed style (five reasons, 5.3 KB over the 77.7 KB before it). Owner's
+// decision, 2026-11-12. It sets nothing aside for the colour check.
+const BUDGET_MIN_BYTES = 84 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],

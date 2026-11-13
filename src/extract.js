@@ -38,7 +38,7 @@ function bodyHtml(doc) {
 }
 
 // An accordion's answer, hidden until its button is pressed: FAQs on shop pages.
-function isCollapsedAnswer(el) {
+export function isCollapsedAnswer(el) {
   return Boolean(el.previousElementSibling?.matches(TOGGLE)) && (el.textContent || "").trim().length >= MIN_ANSWER_CHARS;
 }
 

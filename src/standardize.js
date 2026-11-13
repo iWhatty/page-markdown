@@ -252,7 +252,7 @@ function tabOf(panel, tabs) {
  * name, in place of a tab strip that points nowhere. A long inactive panel is
  * left out, and named in stats.omittedTabs.
  */
-function standardizeTabPanels(doc, stats) {
+function standardizeTabPanels(doc, stats, concealment) {
   // Docker's docs write aria-role, and call a panel a tab: only the strip's is right.
   for (const list of Array.from(doc.querySelectorAll("[aria-role='tablist']"))) {
     list.setAttribute("role", "tablist");
@@ -260,13 +260,24 @@ function standardizeTabPanels(doc, stats) {
     for (const panel of Array.from(list.nextElementSibling?.children || [])) panel.setAttribute("role", "tabpanel");
   }
   const panels = Array.from(doc.querySelectorAll(TAB_PANELS));
+  const hasProvenance = concealment && ["computed", "incomplete"].includes(concealment.check);
+  const inactive = new Map(panels.map((panel) => [panel, isInactivePanel(panel)]));
+  const panelLengths = new Map(panels.map((panel) => [panel, (panel.textContent || "").replace(/\s+/g, " ").trim().length]));
+  // Resolve short-panel exceptions before lifting, but copy labels only after
+  // lifting: concealed label text must never become a new visible heading.
+  for (const panel of panels) {
+    if (hasProvenance && inactive.get(panel) && panelLengths.get(panel) <= MAX_INACTIVE_PANEL_CHARS) {
+      concealment?.exempt(panel);
+    }
+  }
+  concealment?.lift(doc);
   if (!panels.length) return;
   const tabs = Array.from(doc.querySelectorAll(TABS));
   for (const panel of panels) {
     const label = (tabOf(panel, tabs)?.textContent || "").replace(/\s+/g, " ").trim().slice(0, MAX_TAB_LABEL_CHARS);
     const text = (panel.textContent || "").replace(/\s+/g, " ").trim();
-    if (isInactivePanel(panel)) {
-      if (text.length > MAX_INACTIVE_PANEL_CHARS) {
+    if (hasProvenance ? inactive.get(panel) : isInactivePanel(panel)) {
+      if ((hasProvenance ? panelLengths.get(panel) : text.length) > MAX_INACTIVE_PANEL_CHARS) {
         stats.omittedTabs.push(label);
         panel.remove();
         continue;
@@ -303,7 +314,7 @@ function standardizeAsides(doc) {
 
 /**
  * @param {Document} doc the inert clone (mutated in place)
- * @param {{ url?: string }} [options]
+ * @param {{ url?: string, concealment?: ReturnType<typeof import('./concealed.js').createConcealment> }} [options]
  */
 export function standardizeDocument(doc, options = {}) {
   const base = options.url || "";
@@ -318,7 +329,7 @@ export function standardizeDocument(doc, options = {}) {
     headingsUnwrapped: 0,
     omittedTabs: /** @type {string[]} */ ([]),
   };
-  standardizeTabPanels(doc, stats);
+  standardizeTabPanels(doc, stats, options.concealment);
   standardizeAsides(doc);
   standardizeHeadings(doc, stats);
   standardizeCode(doc, stats);

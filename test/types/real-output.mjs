@@ -26,6 +26,11 @@ const ARTICLE = `<html lang="en"><head><title>Headline - Site</title></head>
 
 // Outputs the fixtures don't reach, including every optional field and kind.
 function builtPages() {
+  const concealed = parse('<html><body><p>TypeConcealedSentinel</p></body></html>');
+  const Parser = concealed.defaultView.DOMParser;
+  Object.defineProperty(concealed, "defaultView", { value: { DOMParser: Parser, getComputedStyle: () => ({
+    display: "block", visibility: "visible", opacity: "0", fontSize: "16px", clip: "auto", clipPath: "none", transitionProperty: "none", animationName: "none",
+  }) } });
   const shadow = parse(`<html><body><main><p>${LOREM}</p><div id="host"></div></main></body></html>`);
   const root = shadow.createDocumentFragment();
   root.appendChild(shadow.createElement("p")).textContent = "In the shadow.";
@@ -33,6 +38,7 @@ function builtPages() {
   const hidden = `${cp(0xE0041, 0xE0042)} ${cp(0xFE00, 0xFE01, 0xFE02, 0xFE03)} ${cp(0x2061, 0x2062, 0x2063)} ${cp(0xE0080, 0xE0081)}`;
   const json = JSON.stringify({ a: 1, b: "x".repeat(2000) });
   return [
+    [concealed, { extract: "full" }],
     [shadow, { extract: "full", sanitize: { shadowNodeLimit: 1 } }],
     [parse(`<html><body><p>${LOREM}</p><p>${json}</p></body></html>`), { extract: "full" }],
     [parse(`<html><body><p>${LOREM} ${hidden}</p></body></html>`), { extract: "full", removeHiddenText: true, includeFullPage: true }],

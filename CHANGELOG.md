@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Provisional:** supported source-document computed styles now separate
+  `display:none`, hidden/collapsed visibility, zero opacity, zero font size and
+  supported empty clips (legacy `clip` requires absolute/fixed positioning)
+  into capped `concealedText`, with uncapped omission
+  counts and notices in both Markdown outputs. `detectConcealedText: false`
+  restores previous processing. Static documents retain previous output.
+  The check reports computed, static-only, disabled or incomplete capability.
+  Short tabs and existing answer/code exceptions remain; independent reasons
+  still lift text and can change extraction choice and tab omissions.
+  Opacity-applicable transitions and named animations with nonzero durations
+  retain text with a warning; that provisional rule and default-on await
+  operator live-style evidence and Astra review.
+
 - Boxes a page marks as skippable are left out of the article: a box that opens with a
   link to the end marker it closes with, as BBC's "most read" and podcast boxes do in
   every language. Boxes holding a quote, embed, code or table stay.

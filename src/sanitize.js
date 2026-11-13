@@ -1,5 +1,6 @@
 // Stage 1: clone the page into an inert document, inline open shadow roots
 // within limits, and strip non-content. The live page is never modified.
+import { CONCEALED_MARK, createConcealment } from "./concealed.js";
 
 /** @type {Readonly<Required<import("./types.js").SanitizeOptions>>} */
 export const DEFAULT_SANITIZE_OPTIONS = Object.freeze({
@@ -9,6 +10,7 @@ export const DEFAULT_SANITIZE_OPTIONS = Object.freeze({
   stripMeta: true,
   stripLinkTags: true,
   stripAds: true,
+  detectConcealedText: true,
   // App-specific overlays or widgets to drop, e.g. "[data-app-overlay]".
   extraStripSelectors: [],
   shadowNodeLimit: 5000,
@@ -96,7 +98,6 @@ function positiveLimit(value, name) {
  *
  * @param {Document|Element} root
  * @param {import("./types.js").SanitizeOptions} [options]
- * @returns {{ document: Document, omissions: { shadowHosts: number } }}
  */
 export function sanitizeToInertDocument(root, options = {}) {
   const opts = { ...DEFAULT_SANITIZE_OPTIONS, ...options };
@@ -109,19 +110,26 @@ export function sanitizeToInertDocument(root, options = {}) {
   const sourceDoc = /** @type {Document} */ (root.nodeType === 9 ? root : root.ownerDocument);
   const source = root.nodeType === 9 ? /** @type {Document} */ (root).documentElement : root;
   const inert = createInertDocument(sourceDoc);
+  const concealment = createConcealment(sourceDoc, opts.detectConcealedText);
 
   function shallow(node) {
-    if (node.nodeType !== 1) return inert.importNode(node, false);
+    if (node.nodeType !== 1) {
+      const copy = inert.importNode(node, false);
+      concealment.copy(node, copy);
+      return copy;
+    }
     const name = node.prefix ? `${node.prefix}:${node.localName}` : node.localName;
     const copy = node.namespaceURI
       ? inert.createElementNS(node.namespaceURI, name)
       : inert.createElement(name);
     for (const attr of Array.from(node.attributes || [])) {
+      if (attr.name.toLowerCase() === CONCEALED_MARK) continue;
       // HTML allows colon-bearing names without a namespace (framework
       // directives); setAttributeNS rejects those.
       if (attr.namespaceURI) copy.setAttributeNS(attr.namespaceURI, attr.name, attr.value);
       else copy.setAttribute(attr.name, attr.value);
     }
+    concealment.copy(node, copy);
     return copy;
   }
 
@@ -213,5 +221,5 @@ export function sanitizeToInertDocument(root, options = {}) {
   } else {
     inert.body.appendChild(clone);
   }
-  return { document: inert, omissions: { shadowHosts } };
+  return { document: inert, omissions: { shadowHosts }, concealment };
 }
