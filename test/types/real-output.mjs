@@ -11,6 +11,7 @@ import path from "node:path";
 import { parseHTML } from "linkedom";
 
 import * as api from "../../src/index.js";
+import { pageToMarkdown as trialToMarkdown } from "../../src/trial.js";
 
 const OUT = ".types-test/real-output.ts";
 const FIXTURES = "test/fixtures";
@@ -38,6 +39,7 @@ function builtPages() {
   const hidden = `${cp(0xE0041, 0xE0042)} ${cp(0xFE00, 0xFE01, 0xFE02, 0xFE03)} ${cp(0x2061, 0x2062, 0x2063)} ${cp(0xE0080, 0xE0081)}`;
   const json = JSON.stringify({ a: 1, b: "x".repeat(2000) });
   return [
+    [parse(ARTICLE), { diagnostics: 'trial' }],
     [concealed, { extract: "full", detectConcealedText: true }],
     [shadow, { extract: "full", sanitize: { shadowNodeLimit: 1 } }],
     [parse(`<html><body><p>${LOREM}</p><p>${json}</p></body></html>`), { extract: "full" }],
@@ -64,7 +66,7 @@ function allResults() {
       for (const options of FIXTURE_OPTIONS) results.push(api.pageToMarkdown(parse(html), { url: URL_BASE, ...options }));
     }
   }
-  for (const [doc, options] of builtPages()) results.push(api.pageToMarkdown(doc, { url: URL_BASE, ...options }));
+  for (const [doc, options] of builtPages()) results.push((options.diagnostics === 'trial' ? trialToMarkdown : api.pageToMarkdown)(doc, { url: URL_BASE, ...options }));
   return results;
 }
 

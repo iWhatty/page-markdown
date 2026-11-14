@@ -1,6 +1,25 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 — 2026-11-14
+
+- Add the separate `page-markdown/trial` entry and declarations for diagnostics
+  only. Ordinary `page-markdown` consumers do not ship trial code. The main entry
+  throws `TrialEntryRequiredError` for `diagnostics: "trial"`, directing callers
+  to the trial entry. The main bundle ceiling remains 86 KB.
+- On the trial entry, add independent `diagnostics: "off" | "trial"` (default OFF). OFF branches
+  before diagnostic setup, association, provenance and finalization; detector
+  bounds and conversion output remain unchanged.
+- Trial diagnostics expose canonical source identities and UTF-16 ranges,
+  fingerprints, lifted-run links, pending-opacity element locations, consulted
+  unsupported-colour encounters, bounded populations and extraction membership.
+  Inert provenance is stripped before Markdown/custom extraction; code and aside
+  transformations preserve ranges. Custom/unverifiable output is unmatched.
+- Bound source census, metadata and inert provenance work; caps report
+  incomplete/unknown coverage. Keep additions separate from extraction and
+  record HELIOS's deferred planner protection. This package slice supplies no
+  heuristic, bridge transport or screenshot proof.
+- Extend count-based cost, fixture parity, hand-labelled range and mutation
+  controls.
 
 ## 0.3.0 — 2026-11-13
 

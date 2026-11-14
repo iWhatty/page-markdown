@@ -1,3 +1,4 @@
+import { DOM_GET_ATTRIBUTE, DOM_SET_ATTRIBUTE, DOM_HAS_ATTRIBUTE, DOM_REMOVE_ATTRIBUTE, DOM_QUERY_SELECTOR, DOM_QUERY_SELECTOR_ALL, DOM_TEXT_CONTENT, DOM_DOCUMENT_ELEMENT, DOM_FIRST_ELEMENT_CHILD, DOM_INNER_HTML } from "./dom.js";
 // Stage 3: pick the readable content. Default: Mozilla Readability on a copy
 // of the standardized clone, falling back to the whole body when it finds
 // nothing or too little, and to the page's main content when it keeps only a
@@ -26,34 +27,35 @@ const SECTION_SHARE_FACTOR = 1.5;
 // As far as a clone can tell, with no stylesheets. Not aria-hidden: shops put
 // the price people see in it, beside a longer one for screen readers.
 export function isHiddenElement(el) {
-  return el.hasAttribute("hidden") || HIDDEN_STYLE.test(el.getAttribute("style") || "");
+  return el[DOM_HAS_ATTRIBUTE]("hidden") || HIDDEN_STYLE.test(el[DOM_GET_ATTRIBUTE]("style") || "");
 }
 
 function textLength(html = "") {
   return String(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().length;
 }
 
-function bodyHtml(doc) {
-  return (doc.body || doc.documentElement)?.innerHTML || "";
+function bodyHtml(doc, trial) {
+  if (trial) trial.select(doc.body || doc[DOM_DOCUMENT_ELEMENT]);
+  return (doc.body || doc[DOM_DOCUMENT_ELEMENT])?.[DOM_INNER_HTML] || "";
 }
 
 // An accordion's answer, hidden until its button is pressed: FAQs on shop pages.
 export function isCollapsedAnswer(el) {
-  return Boolean(el.previousElementSibling?.matches(TOGGLE)) && (el.textContent || "").trim().length >= MIN_ANSWER_CHARS;
+  return Boolean(el.previousElementSibling?.matches(TOGGLE)) && (el[DOM_TEXT_CONTENT] || "").trim().length >= MIN_ANSWER_CHARS;
 }
 
 // <main> or else the body, without navigation, other page chrome or anything
 // hidden, except code behind a "Show code" toggle and collapsed answers. A header
 // inside <main> usually belongs to the content; one in the body doesn't.
 function mainContentRoot(doc) {
-  const main = doc.querySelector(MAIN);
-  const root = (main || doc.body || doc.documentElement).cloneNode(true);
-  for (const el of Array.from(root.querySelectorAll(`${PAGE_CHROME}, aside, template, [role='complementary']${main ? "" : ", header"}`))) el.remove();
-  for (const el of Array.from(root.querySelectorAll("[hidden], [style]"))) {
-    if (isHiddenElement(el) && !el.querySelector("pre") && !isCollapsedAnswer(el)) el.remove();
+  const main = doc[DOM_QUERY_SELECTOR](MAIN);
+  const root = (main || doc.body || doc[DOM_DOCUMENT_ELEMENT]).cloneNode(true);
+  for (const el of Array.from(root[DOM_QUERY_SELECTOR_ALL](`${PAGE_CHROME}, aside, template, [role='complementary']${main ? "" : ", header"}`))) el.remove();
+  for (const el of Array.from(root[DOM_QUERY_SELECTOR_ALL]("[hidden], [style]"))) {
+    if (isHiddenElement(el) && !el[DOM_QUERY_SELECTOR]("pre") && !isCollapsedAnswer(el)) el.remove();
   }
-  for (const link of Array.from(root.querySelectorAll("a[href^='#']"))) {
-    if (/^\s*skip\b/i.test(link.textContent || "")) link.remove();
+  for (const link of Array.from(root[DOM_QUERY_SELECTOR_ALL]("a[href^='#']"))) {
+    if (/^\s*skip\b/i.test(link[DOM_TEXT_CONTENT] || "")) link.remove();
   }
   return removeSkippableBoxes(root);
 }
@@ -69,21 +71,21 @@ const MAX_SKIPPED_SHARE = 0.25;
 // marker it closes with. The page itself says it interrupts the text (BBC's
 // most-read and podcast boxes), in whatever language.
 function removeSkippableBoxes(root) {
-  const size = (el) => withoutSpaces(el.textContent || "");
+  const size = (el) => withoutSpaces(el[DOM_TEXT_CONTENT] || "");
   const total = size(root).length;
-  for (const link of Array.from(root.querySelectorAll("a[href^='#']"))) {
-    const id = link.getAttribute("href").slice(1).replace(/["\\]/g, "\\$&");
+  for (const link of Array.from(root[DOM_QUERY_SELECTOR_ALL]("a[href^='#']"))) {
+    const id = link[DOM_GET_ATTRIBUTE]("href").slice(1).replace(/["\\]/g, "\\$&");
     const label = size(link);
     if (!id || !label || !root.contains(link)) continue;
     let box = link.parentElement;
     let end = null;
-    while (box && box !== root && !(end = box.querySelector(`[id="${id}"]`))) box = box.parentElement;
+    while (box && box !== root && !(end = box[DOM_QUERY_SELECTOR](`[id="${id}"]`))) box = box.parentElement;
     if (!end || end.contains(link) || box.matches("main, article, body")) continue;
     const marker = size(end);
     const text = size(box);
     if (marker && marker.length <= MAX_END_MARKER_CHARS && text.length > label.length + marker.length
       && text.length <= total * MAX_SKIPPED_SHARE && text.startsWith(label) && text.endsWith(marker)
-      && !box.querySelector(SKIP_KEPT)) box.remove();
+      && !box[DOM_QUERY_SELECTOR](SKIP_KEPT)) box.remove();
   }
   return root;
 }
@@ -91,35 +93,35 @@ function removeSkippableBoxes(root) {
 // An article above its comments, where Readability kept the article: what's left
 // without them. null for a thread, where what Readability kept is itself a comment.
 function articleWithoutComments(root, articleHtml) {
-  const comments = Array.from(root.querySelectorAll(COMMENTS));
+  const comments = Array.from(root[DOM_QUERY_SELECTOR_ALL](COMMENTS));
   if (!comments.length) return null;
   const kept = withoutSpaces(htmlText(articleHtml));
   const sample = kept.slice(kept.length >> 1, (kept.length >> 1) + 60);
-  if (comments.some((el) => withoutSpaces(el.textContent || "").includes(sample))) return null;
+  if (comments.some((el) => withoutSpaces(el[DOM_TEXT_CONTENT] || "").includes(sample))) return null;
   for (const el of comments) el.remove();
   return root;
 }
 
 // Readability chose a container above <main>, and the site's menu came with it.
 function keptSiteMenu(doc, kept) {
-  const main = doc.querySelector(MAIN);
+  const main = doc[DOM_QUERY_SELECTOR](MAIN);
   if (!main) return false;
-  const text = withoutSpaces(main.textContent || "");
+  const text = withoutSpaces(main[DOM_TEXT_CONTENT] || "");
   if (!kept.includes(text.slice(text.length >> 1, (text.length >> 1) + MENU_SAMPLE_CHARS))) return false;
-  return Array.from(doc.querySelectorAll("nav, [role='navigation']")).some((nav) => {
-    const menu = withoutSpaces(nav.textContent || "").slice(0, MENU_SAMPLE_CHARS);
+  return Array.from(doc[DOM_QUERY_SELECTOR_ALL]("nav, [role='navigation']")).some((nav) => {
+    const menu = withoutSpaces(nav[DOM_TEXT_CONTENT] || "").slice(0, MENU_SAMPLE_CHARS);
     return !main.contains(nav) && menu.length === MENU_SAMPLE_CHARS && kept.includes(menu);
   });
 }
 
 // A heading that is one link names another page, not a section of this one.
 function isStoryCardTitle(h2) {
-  const text = withoutSpaces(h2.textContent || "");
-  return Boolean(h2.closest("a")) || Array.from(h2.querySelectorAll("a:not([href^='#'])")).some((a) => withoutSpaces(a.textContent || "") === text);
+  const text = withoutSpaces(h2[DOM_TEXT_CONTENT] || "");
+  return Boolean(h2.closest("a")) || Array.from(h2[DOM_QUERY_SELECTOR_ALL]("a:not([href^='#'])")).some((a) => withoutSpaces(a[DOM_TEXT_CONTENT] || "") === text);
 }
 
 function lostMostSections(root, kept) {
-  const headings = Array.from(root.querySelectorAll("h2")).filter((h2) => !isStoryCardTitle(h2)).map((h2) => withoutSpaces(h2.textContent || "")).filter(Boolean);
+  const headings = Array.from(root[DOM_QUERY_SELECTOR_ALL]("h2")).filter((h2) => !isStoryCardTitle(h2)).map((h2) => withoutSpaces(h2[DOM_TEXT_CONTENT] || "")).filter(Boolean);
   return headings.length >= MIN_SECTIONS && headings.filter((heading) => !kept.includes(heading)).length * 2 > headings.length;
 }
 
@@ -132,32 +134,32 @@ const LAYOUT_CLASS = /^(?:\S+:)?(?:-?scroll-[mp][a-z]?-\S+|overflow(?:-[xy])?-(?
 // does the scroll-mt-2 on every code block of Docker's docs.
 function withoutMisleadingNames(doc) {
   // Single-paragraph FAQ wrappers can fail Readability's link-density check.
-  for (const el of Array.from(doc.querySelectorAll("details div")).reverse()) {
-    const p = el.firstElementChild;
-    if (p?.localName === "p" && el.children.length === 1 && el.textContent === p.textContent
-      && !isHiddenElement(el) && el.getAttribute("aria-hidden") !== "true") el.replaceWith(...Array.from(el.childNodes));
+  for (const el of Array.from(doc[DOM_QUERY_SELECTOR_ALL]("details div")).reverse()) {
+    const p = el[DOM_FIRST_ELEMENT_CHILD];
+    if (p?.localName === "p" && el.children.length === 1 && el[DOM_TEXT_CONTENT] === p[DOM_TEXT_CONTENT]
+      && !isHiddenElement(el) && el[DOM_GET_ATTRIBUTE]("aria-hidden") !== "true") el.replaceWith(...Array.from(el.childNodes));
   }
-  for (const heading of Array.from(doc.querySelectorAll("h1, h2, h3, h4, h5, h6"))) {
-    heading.removeAttribute("class");
-    heading.removeAttribute("id");
+  for (const heading of Array.from(doc[DOM_QUERY_SELECTOR_ALL]("h1, h2, h3, h4, h5, h6"))) {
+    heading[DOM_REMOVE_ATTRIBUTE]("class");
+    heading[DOM_REMOVE_ATTRIBUTE]("id");
   }
-  for (const el of Array.from(doc.querySelectorAll("[class]"))) {
-    const names = String(el.getAttribute("class")).split(/\s+/);
+  for (const el of Array.from(doc[DOM_QUERY_SELECTOR_ALL]("[class]"))) {
+    const names = String(el[DOM_GET_ATTRIBUTE]("class")).split(/\s+/);
     const kept = names.filter((name) => !LAYOUT_CLASS.test(name));
-    if (kept.length < names.length) el.setAttribute("class", kept.join(" "));
+    if (kept.length < names.length) el[DOM_SET_ATTRIBUTE]("class", kept.join(" "));
   }
   // Readability removes what's aria-hidden, and icons in table cells usually are.
-  for (const icon of Array.from(doc.querySelectorAll("td svg[aria-hidden], th svg[aria-hidden]"))) icon.removeAttribute("aria-hidden");
+  for (const icon of Array.from(doc[DOM_QUERY_SELECTOR_ALL]("td svg[aria-hidden], th svg[aria-hidden]"))) icon[DOM_REMOVE_ATTRIBUTE]("aria-hidden");
   if (doc.body) removeSkippableBoxes(doc.body);
   return doc;
 }
 
 function copyDocument(doc) {
   const copy = doc.cloneNode(true);
-  if (copy && copy.nodeType === 9 && copy.documentElement) return copy;
+  if (copy && copy.nodeType === 9 && copy[DOM_DOCUMENT_ELEMENT]) return copy;
   // Implementations whose Document.cloneNode is shallow: reparse.
   const Parser = doc.defaultView?.DOMParser || globalThis.DOMParser;
-  return new Parser().parseFromString(doc.documentElement.outerHTML, "text/html");
+  return new Parser().parseFromString(doc[DOM_DOCUMENT_ELEMENT].outerHTML, "text/html");
 }
 
 /**
@@ -174,12 +176,13 @@ function copyDocument(doc) {
 /**
  * @param {Document} doc standardized inert document (not mutated)
  * @param {{ extract?: "readable"|"full"|Extractor,
- *   minExtractChars?: number, minExtractShare?: number, readability?: import("./types.js").ReadabilityOptions }} [options]
+ *   minExtractChars?: number, minExtractShare?: number, readability?: import("./types.js").ReadabilityOptions,
+ *   trial?: import('./trial.js').Trial|null }} [options]
  * @returns {Extraction}
  */
 export function extractContent(doc, options = {}) {
   const mode = options.extract ?? "readable";
-  const full = () => ({ html: bodyHtml(doc), method: "full_page" });
+  const full = () => ({ html: bodyHtml(doc, options.trial), method: "full_page" });
 
   if (mode === "full") return full();
 
@@ -188,9 +191,21 @@ export function extractContent(doc, options = {}) {
   let failure = "";
   try {
     if (typeof mode === "function") {
-      result = mode(copyDocument(doc));
+      const copy = copyDocument(doc);
+      if (options.trial) options.trial.clean(copy);
+      result = mode(copy);
     } else {
-      const article = new Readability(withoutMisleadingNames(copyDocument(doc)), { keepClasses: true, ...options.readability }).parse();
+      const readability = { keepClasses: true, ...options.readability };
+      if (options.trial) {
+        const trial = options.trial;
+        const serialize = readability.serializer;
+        readability.serializer = el => {
+          trial.select(el);
+          return serialize ? serialize(el) : /** @type {Element} */ (el)[DOM_INNER_HTML];
+        };
+      }
+      const Reader = options.trial ? options.trial.Reader : Readability;
+      const article = new Reader(withoutMisleadingNames(copyDocument(doc)), readability).parse();
       result = article && {
         html: article.content || "",
         method: "readability",
@@ -209,9 +224,13 @@ export function extractContent(doc, options = {}) {
   // Too little from the default extractor: the page's own <main>, if it marks
   // one and it holds enough, beats a full page that opens with site navigation.
   const tooLittle = (fallbackReason, title) => {
-    if (typeof mode !== "function" && doc.querySelector(MAIN)) {
-      const html = mainContentRoot(doc).innerHTML || "";
-      if (textLength(html) >= minChars) return { html, method: "main_content", fallbackReason, title };
+    if (typeof mode !== "function" && doc[DOM_QUERY_SELECTOR](MAIN)) {
+      const root = mainContentRoot(doc);
+      if (options.trial) options.trial.select(root);
+      const html = root[DOM_INNER_HTML] || "";
+      if (textLength(html) >= minChars) {
+        return { html, method: "main_content", fallbackReason, title };
+      }
     }
     return { ...full(), fallbackReason, ...(title === undefined ? {} : { title }) };
   };
@@ -228,19 +247,24 @@ export function extractContent(doc, options = {}) {
     const keptText = withoutSpaces(htmlText(result.html));
     // Section loss counts only where it takes more of the page than a related-links block.
     const misses = (el) => {
-      const available = el.innerHTML || "";
+      const available = el[DOM_INNER_HTML] || "";
       return isSmall(available) || (kept < textLength(available) * share * SECTION_SHARE_FACTOR && lostMostSections(el, keptText));
     };
     const root = mainContentRoot(doc);
-    const html = root.innerHTML || "";
+    if (options.trial) options.trial.select(root);
+    const html = root[DOM_INNER_HTML] || "";
     const reason = keptSiteMenu(doc, keptText) && textLength(html) >= minChars ? "extracted_site_menu"
       : isSmall(html) ? "extracted_small_share_of_page"
       : misses(root) ? "extracted_few_sections_of_page" : "";
     if (reason) {
       const article = reason === "extracted_site_menu" ? null : articleWithoutComments(root, result.html);
-      if (article && !misses(article)) return { ...result, commentsOmitted: true };
+      if (article && !misses(article)) {
+        if (options.trial) options.trial.restoreSelection();
+        return { ...result, commentsOmitted: true };
+      }
       return { ...result, html, method: "main_content", fallbackReason: reason };
     }
+    if (options.trial) options.trial.restoreSelection();
   }
   return result;
 }

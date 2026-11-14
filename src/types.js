@@ -106,6 +106,7 @@ export {};
  * @property {string[]} warnings
  * @property {PageMarkdownStats} stats
  * @property {string} [fullPageMarkdown] present only with `includeFullPage`
+ * @property {ReturnType<import('./trial.js').Trial['finish']>} [diagnostics] trial-only observations, excluded from Markdown
  */
 
 /** @typedef {{ label: string, value: string }} PageFact */
@@ -120,6 +121,34 @@ export {};
  */
 /** @typedef {"display_none"|"visibility_hidden"|"opacity_zero"|"font_size_zero"|"clipped"|"transparent_text"|"same_color"} ConcealmentReason */
 /** @typedef {{ reason: ConcealmentReason, chars: number, text: string }} ConcealedText */
+
+/** @typedef {{locator: string, start: number, end: number, block: number, order: number}} TrialRange */
+/** @typedef {{id: string, locator: string, fingerprint: number, ranges: TrialRange[], membership: "retained"|"removed"|"partial"|"unmatched", retained: TrialRange[], removed: TrialRange[], outputBlocks: string[]}} TrialBlock */
+/** @typedef {{recorded: number, omitted: number|"unknown", knownOmitted?: number, status: "complete"|"incomplete"|"not-checked"}} TrialPopulation */
+/**
+ * Diagnostic observations are untrusted, excluded from Markdown, and never
+ * establish visual truth. An unmatched/incomplete observation is unresolved.
+ * @typedef {object} TrialDiagnostics
+ * @property {"page-markdown.trial.v1"} schema
+ * @property {"source-locator.v1"} locatorSchema
+ * @property {ConcealmentCheck} detection
+ * @property {ConcealmentCheck|"not-checked"} computedStyleCoverage
+ * @property {"complete"|"incomplete"} status
+ * @property {boolean} liftedTextTruncated existing lifted-text caps exhausted
+ * @property {{startedAt: number, finishedAt: number}} observedAt Unix milliseconds; instrumented observations are excluded from conversion timing
+ * @property {string|null} limit exhausted diagnostic activity, when known
+ * @property {{nodes: number, maxDepth: number, sourceUnits: number, omitted: number|"unknown"}} census
+ * @property {TrialBlock[]} blocks
+ * @property {{source: string, via: string}[]} projections slot steps retain the assigned node's canonical source location
+ * @property {{entry: number, reason: ConcealmentReason, ranges: TrialRange[]}[]} lifted
+ * @property {{locator: string, blockIds: string[]}[]} pendingOpacity
+ * @property {{locator: string, property: string, raw: string, truncated: boolean, syntax: "oklch"|"display-p3"|"other"}[]} unsupportedColours
+ * @property {{blocks: TrialPopulation, lifted: TrialPopulation, pendingOpacity: TrialPopulation, unsupportedColours: TrialPopulation}} populations
+ * @property {{sourceNodes: number, sourceDepth: number, sourceUnits: number, diagnosticCharacters: number, exceptionalRecords: number, rawColourUnits: number, inertPasses: number, outputRangeReferences: number, liftedBlockUnits: number, liftedTotalUnits: number, liftedEntries: number}} limits
+ * @property {"complete"|"unmatched"} provenance
+ * @property {{title: boolean, recoveredLead: boolean, pageFacts: number}} additions
+ * @property {string} plannerProtection
+ */
 
 /**
  * @typedef {string | string[] | ((node: HTMLElement, options: Record<string, unknown>) => boolean)} TurndownFilter

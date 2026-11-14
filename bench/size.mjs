@@ -50,3 +50,11 @@ if (code.length > BUDGET_MIN_BYTES) {
   console.error("over budget");
   process.exitCode = 1;
 }
+
+// Diagnostics are a separate opt-in entry; its size is report-only.
+const trial = await build({
+  entryPoints: ["src/trial.js"], bundle: true, minify: true, format: "esm",
+  platform: "browser", write: false, logLevel: "error",
+});
+const trialCode = trial.outputFiles[0].contents;
+console.log(`trial (report-only): minified ${(trialCode.length / 1024).toFixed(1)} KB, gzip ${(gzipSync(trialCode).length / 1024).toFixed(1)} KB`);
