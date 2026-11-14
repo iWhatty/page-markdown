@@ -1,3 +1,4 @@
+import { DOM_GET_ATTRIBUTE, DOM_SET_ATTRIBUTE, DOM_HAS_ATTRIBUTE, DOM_REMOVE_ATTRIBUTE, DOM_QUERY_SELECTOR, DOM_QUERY_SELECTOR_ALL, DOM_TEXT_CONTENT, DOM_DOCUMENT_ELEMENT, DOM_FIRST_ELEMENT_CHILD, DOM_INNER_HTML, DOM_CREATE_ELEMENT } from "./dom.js";
 // Stage-1 style provenance; consumed before standardization copies any text.
 // No geometry reads; getComputedStyle can itself trigger style/layout work.
 import { isCollapsedAnswer } from "./extract.js";
@@ -69,8 +70,8 @@ function clipped(clipPath, clip = AUTO, position) {
 // Work items belong to the clone walk. Slots 2..8 carry primitives or a
 // shared exceptional provenance link: persistent, background, provider, head,
 // visibility origin, cleanup chain, and the source element represented.
-/** @param {Document} doc @param {boolean} enabled */
-export function createConcealmentWalk(doc, enabled) {
+/** @param {Document} doc @param {boolean} enabled @param {import('./trial.js').Trial|null} [trial] */
+export function createConcealmentWalk(doc, enabled, trial = null) {
   const view = doc.defaultView;
   const active = enabled && typeof view?.getComputedStyle === "function";
   /** @type {import('./types.js').ConcealmentCheck} */
@@ -89,6 +90,7 @@ export function createConcealmentWalk(doc, enabled) {
 
   function slow() { counts[3]++; }
   function declaration(el) {
+    if (trial) trial.element = el;
     counts[0]++;
     if (outside) counts[6]++;
     try { return view?.getComputedStyle(el); } catch { check = INCOMPLETE; return null; }
@@ -99,9 +101,13 @@ export function createConcealmentWalk(doc, enabled) {
     let value;
     try { value = raw?.[ALL_FIELDS[field]]; } catch { /* consulted failure */ }
     if (typeof value !== "string" || !value) { check = INCOMPLETE; return ""; }
+    const original = value;
     // Canonical computed strings need no normalization or replacement string.
     if (NORMALIZE.test(value)) { slow(); value = value.trim().toLowerCase(); }
     if (!value) check = INCOMPLETE;
+    if (trial && (field === 11 || field === 12 || field === 17) && (value.length > 2048 || !rgb(value))) {
+      trial.colour(trial.element, ALL_FIELDS[field], original, value);
+    }
     return value;
   }
   function probe(el) {
@@ -241,7 +247,10 @@ export function createConcealmentWalk(doc, enabled) {
     if (hidden) mask |= 2;
     if (opacity && +opacity === 0) {
       slow();
-      if (pendingOpacity(read(raw, 7), read(raw, 8), read(raw, 9), read(raw, 10))) pending.add(el);
+      if (pendingOpacity(read(raw, 7), read(raw, 8), read(raw, 9), read(raw, 10))) {
+        if (trial && !pending.has(el)) trial.pendingElement(el);
+        pending.add(el);
+      }
       else mask |= 4;
     }
     if (clipPath !== NONE) {
@@ -275,9 +284,9 @@ export function createConcealmentWalk(doc, enabled) {
         mask |= textSignal(el, raw, work);
       }
     }
-    if (copy?.hasAttribute(CONCEALED_MARK)) {
+    if (copy?.[DOM_HAS_ATTRIBUTE](CONCEALED_MARK)) {
       slow();
-      const marks = (copy.getAttribute(CONCEALED_MARK) || '').split(' ');
+      const marks = (copy[DOM_GET_ATTRIBUTE](CONCEALED_MARK) || '').split(' ');
       planted.add(copy);
       for (let i = 0; i < REASONS.length; i++) if (marks.includes(REASONS[i])) mask |= 1 << i;
     }
@@ -287,7 +296,7 @@ export function createConcealmentWalk(doc, enabled) {
       const carrier = [copy, mask, work[2], work[7]];
       if (mask & (1 | 4 | 16)) work[2] = carrier;
       if (hidden) { work[6] ||= carrier; work[7] = carrier; }
-      if (copy && mask & 3 && !copy.hasAttribute(HIDDEN)) { copy.setAttribute(HIDDEN, ''); computedHidden.add(copy); }
+      if (copy && mask & 3 && !copy[DOM_HAS_ATTRIBUTE](HIDDEN)) { copy[DOM_SET_ATTRIBUTE](HIDDEN, ''); computedHidden.add(copy); }
     }
     if (!hidden) work[6] = 0;
     if (pairs && !work[5]) for (let i = 0; i < pairs.length; i++) {
@@ -309,8 +318,8 @@ export function createConcealmentWalk(doc, enabled) {
   function exempt(el) { exemptions.add(el); }
   function lift(inert) {
     if (!active || !records.size && !computedHidden.size && !cleanups.size && !planted.size) return;
-    for (const el of inert.querySelectorAll('[hidden], [style]')) {
-      if (el.querySelector('pre') || isCollapsedAnswer(el)) exemptions.add(el);
+    for (const el of inert[DOM_QUERY_SELECTOR_ALL]('[hidden], [style]')) {
+      if (el[DOM_QUERY_SELECTOR]('pre') || isCollapsedAnswer(el)) exemptions.add(el);
     }
     function reason(record) {
       let mask = record[1] & (4 | 8 | 16 | 32 | 64);
@@ -334,7 +343,7 @@ export function createConcealmentWalk(doc, enabled) {
     // Ordered, allocation-free traversal of ordinary inert nodes. The stack is
     // only needed at template fragments, whose parent is not the template.
     const resumes = [];
-    let node = inert.documentElement;
+    let node = inert[DOM_DOCUMENT_ELEMENT];
     while (node) {
       if (isText(node)) {
         const record = records.get(node);
@@ -371,9 +380,14 @@ export function createConcealmentWalk(doc, enabled) {
       const removesWhitespace = reason === REASONS[0] || reason === REASONS[3];
       const substantive = !!text.trim();
       if (!removesWhitespace && !substantive) continue;
-      if (!removesWhitespace && /^\s|\s$/.test(text)) nodes[0].before(inert.createTextNode(" "));
+      if (!removesWhitespace && /^\s|\s$/.test(text)) {
+        const separator = inert.createTextNode(" ");
+        nodes[0].before(separator);
+        if (trial) trial.generated(separator, ' ', nodes[0]);
+      }
       for (const node of nodes) node.remove();
       if (!substantive) continue;
+      if (trial) trial.lift(nodes, reason, summary.count);
       summary.count += 1;
       summary.chars += chars;
       const captured = text.slice(0, Math.min(CONCEALED_BLOCK_LIMIT, CONCEALED_TOTAL_LIMIT - stored));
@@ -383,9 +397,9 @@ export function createConcealmentWalk(doc, enabled) {
       } else summary.truncated = true;
       if (captured.length < chars) summary.truncated = true;
     }
-    for (const el of computedHidden) el.removeAttribute(HIDDEN);
-    // Includes template contents, which Document.querySelectorAll omits.
-    for (const el of planted) el.removeAttribute(CONCEALED_MARK);
+    for (const el of computedHidden) el[DOM_REMOVE_ATTRIBUTE](HIDDEN);
+    // Includes template contents, which Document[DOM_QUERY_SELECTOR_ALL] omits.
+    for (const el of planted) el[DOM_REMOVE_ATTRIBUTE](CONCEALED_MARK);
   }
   return { process, initial, inherit, exempt, lift, entries, summary,
     get counters() { return Object.fromEntries('styleCalls propertyReads recordsCreated slowPathEntries probeStyleCalls probeReads outsideStyleCalls outsideReads rereads'.split(' ').map((name, i) => [name, counts[i]])); },

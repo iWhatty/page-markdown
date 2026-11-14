@@ -1,3 +1,4 @@
+import { DOM_QUERY_SELECTOR, DOM_QUERY_SELECTOR_ALL, DOM_TEXT_CONTENT } from "./dom.js";
 // Short label/value facts the extractor left out: package sidebars (version,
 // license, downloads), price and spec boxes, definition lists, two-column
 // tables. Readability keeps the article and drops these asides, which is right
@@ -20,31 +21,31 @@ function isSentence(text) {
 }
 
 function shortValue(el) {
-  if (!el || el.querySelector("h1, h2, h3, h4, h5, h6, table, pre, form, button, input, select, textarea")) return "";
+  if (!el || el[DOM_QUERY_SELECTOR]("h1, h2, h3, h4, h5, h6, table, pre, form, button, input, select, textarea")) return "";
   // A list of links is navigation, not a fact.
-  const links = el.tagName === "A" ? [el] : el.querySelectorAll("a");
+  const links = el.tagName === "A" ? [el] : el[DOM_QUERY_SELECTOR_ALL]("a");
   if (links.length > 1) return "";
-  const text = squash(el.textContent);
+  const text = squash(el[DOM_TEXT_CONTENT]);
   // So is a lone link, unless its text is data: a domain, path or number.
-  if (links.length === 1 && squash(links[0].textContent) === text && !/[\d./@]/.test(text)) return "";
+  if (links.length === 1 && squash(links[0][DOM_TEXT_CONTENT]) === text && !/[\d./@]/.test(text)) return "";
   return text.length <= MAX_VALUE_CHARS && !isSentence(text) ? text : "";
 }
 
 function* candidatePairs(doc) {
   // Heading followed by a short value: <h3>Version</h3><p>1.2.3</p>.
-  for (const h of doc.querySelectorAll("h2, h3, h4, h5, h6")) {
+  for (const h of doc[DOM_QUERY_SELECTOR_ALL]("h2, h3, h4, h5, h6")) {
     // A linked heading titles something else: another story's teaser, a card.
-    if (h.closest("a") || h.querySelector("a")) continue;
-    yield [h.textContent, shortValue(h.nextElementSibling), h];
+    if (h.closest("a") || h[DOM_QUERY_SELECTOR]("a")) continue;
+    yield [h[DOM_TEXT_CONTENT], shortValue(h.nextElementSibling), h];
   }
-  for (const dt of doc.querySelectorAll("dt")) {
+  for (const dt of doc[DOM_QUERY_SELECTOR_ALL]("dt")) {
     const dd = dt.nextElementSibling;
-    if (dd?.tagName === "DD") yield [dt.textContent, shortValue(dd), dt];
+    if (dd?.tagName === "DD") yield [dt[DOM_TEXT_CONTENT], shortValue(dd), dt];
   }
   // Two-cell rows: | Label | Value |.
-  for (const row of doc.querySelectorAll("tr")) {
+  for (const row of doc[DOM_QUERY_SELECTOR_ALL]("tr")) {
     const cells = Array.from(row.children).filter((c) => c.tagName === "TH" || c.tagName === "TD");
-    if (cells.length === 2) yield [cells[0].textContent, shortValue(cells[1]), row];
+    if (cells.length === 2) yield [cells[0][DOM_TEXT_CONTENT], shortValue(cells[1]), row];
   }
 }
 

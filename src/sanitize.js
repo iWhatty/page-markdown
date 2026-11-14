@@ -1,3 +1,4 @@
+import { DOM_SET_ATTRIBUTE, DOM_DOCUMENT_ELEMENT, DOM_CREATE_ELEMENT } from "./dom.js";
 // Stage 1: clone the page into an inert document, inline open shadow roots
 // within limits, and strip non-content. The live page is never modified.
 import { CONCEALED_MARK, createConcealmentWalk, isText, isElement, DOM_LOCAL_NAME, DOM_GET_ROOT_NODE, DOM_CHILD_NODES, DOM_NODE_VALUE, DOM_SHADOW_ROOT, DOM_CONTENT, DOM_APPEND_CHILD, DOM_NODE_TYPE} from "./concealed.js";
@@ -98,8 +99,9 @@ function positiveLimit(value, name) {
  *
  * @param {Document|Element} root
  * @param {import("./types.js").SanitizeOptions} [options]
+ * @param {import("./trial.js").Trial|null} [trial] internal capture observer
  */
-export function sanitizeToInertDocument(root, options = {}) {
+export function sanitizeToInertDocument(root, options = {}, trial = null) {
   const opts = { ...DEFAULT_SANITIZE_OPTIONS, ...options };
   const limits = [
     positiveLimit(opts.shadowNodeLimit, "shadowNodeLimit"),
@@ -108,26 +110,29 @@ export function sanitizeToInertDocument(root, options = {}) {
   ];
   const selectors = stripSelectors(opts);
   const sourceDoc = /** @type {Document} */ (root[DOM_NODE_TYPE] === 9 ? root : root.ownerDocument);
-  const source = root[DOM_NODE_TYPE] === 9 ? /** @type {Document} */ (root).documentElement : root;
+  const source = root[DOM_NODE_TYPE] === 9 ? /** @type {Document} */ (root)[DOM_DOCUMENT_ELEMENT] : root;
   const inert = createInertDocument(sourceDoc);
-  const concealment = createConcealmentWalk(sourceDoc, opts.detectConcealedText);
+  const concealment = createConcealmentWalk(sourceDoc, opts.detectConcealedText, trial);
 
   function shallow(node) {
     if (!isElement(node)) {
       const copy = inert.importNode(node, false);
+      if (trial) trial.associate(node, copy);
       return copy;
     }
     const name = node.prefix ? `${node.prefix}:${node[DOM_LOCAL_NAME]}` : node[DOM_LOCAL_NAME];
     const copy = node.namespaceURI
       ? inert.createElementNS(node.namespaceURI, name)
-      : inert.createElement(name);
+      : inert[DOM_CREATE_ELEMENT](name);
     for (const attr of Array.from(node.attributes || [])) {
       if (attr.name.toLowerCase() === CONCEALED_MARK) continue;
+      if (trial && attr.name.toLowerCase() === trial.sourceMark) continue;
       // HTML allows colon-bearing names without a namespace (framework
       // directives); setAttributeNS rejects those.
       if (attr.namespaceURI) copy.setAttributeNS(attr.namespaceURI, attr.name, attr.value);
-      else copy.setAttribute(attr.name, attr.value);
+      else copy[DOM_SET_ATTRIBUTE](attr.name, attr.value);
     }
+    if (trial) trial.associate(node, copy);
     return copy;
   }
 
@@ -236,10 +241,11 @@ export function sanitizeToInertDocument(root, options = {}) {
   }
 
   if (clone[DOM_LOCAL_NAME] === "html") {
-    inert.removeChild(inert.documentElement);
+    inert.removeChild(inert[DOM_DOCUMENT_ELEMENT]);
     inert[DOM_APPEND_CHILD](clone);
   } else {
     inert.body[DOM_APPEND_CHILD](clone);
   }
+  if (trial) return { document: inert, omissions: { shadowHosts }, concealment, trial };
   return { document: inert, omissions: { shadowHosts }, concealment };
 }

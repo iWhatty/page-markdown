@@ -3,8 +3,30 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-const paths = ['src/concealed.js', 'src/sanitize.js', 'src/standardize.js'];
+const paths = ['src/concealed.js', 'src/sanitize.js', 'src/standardize.js', 'src/trial.js', 'src/extract.js', 'src/index.js'];
 export const controls = [
+  { name: 'main imports trial', file: paths[5], from: "// Ordinary entry:", to: "import './trial.js'; // Ordinary entry:",
+    test: 'main entry module graph', suite: 'test/trial-entry.test.mjs', assertion: /main entry must not load trial modules/ },
+  { name: 'Readability carrier transfer', file: paths[3], from: "if (single && (tag === 'P' || tag === 'DIV' || tag === 'SECTION')) {", to: 'if (false) {',
+    test: 'trial Readability transfers', suite: 'test/concealed-boundaries.test.mjs', assertion: /Readability transfer keeps provenance complete/ },
+  { name: 'equal-text identity swap', file: paths[3], from: 'const block = this.#blocks[range.block];', to: 'const block = this.#blocks[range.block ^ 1];',
+    test: 'trial equal-text identity', suite: 'test/concealed-boundaries.test.mjs', assertion: /equal-text identity membership follows the selected source sibling/ },
+  { name: 'lost carrier', file: paths[3], from: "dom(node, 'setAttribute').call(node, SOURCE_MARK, token);", to: 'void token;',
+    test: 'trial lost and duplicated carriers', suite: 'test/concealed-boundaries.test.mjs', assertion: /carrier retention covers both independently labelled source ranges/ },
+  { name: 'duplicated carrier', file: paths[3], from: 'carrier.seen++;', to: 'carrier.seen += 2;',
+    test: 'trial lost and duplicated carriers', suite: 'test/concealed-boundaries.test.mjs', assertion: /carrier retention covers both independently labelled source ranges/ },
+  { name: 'partial interval', file: paths[3], from: 'block.retained.push(range);', to: 'block.retained.push({ ...range, end: range.end - 1 });',
+    test: 'trial partial intervals', suite: 'test/concealed-boundaries.test.mjs', assertion: /partial retained UTF-16 intervals match the hand-labelled source/ },
+  { name: 'omitted pending record', file: paths[0], from: 'if (trial && !pending.has(el)) trial.pendingElement(el);', to: 'void el;',
+    test: 'trial pending wrappers', suite: 'test/concealed-boundaries.test.mjs', assertion: /pending wrapper locator and affected block IDs are present/ },
+  { name: 'omitted colour record', file: paths[0], from: 'trial.colour(trial.element, ALL_FIELDS[field], original, value);', to: 'void original;',
+    test: 'trial pending wrappers', suite: 'test/concealed-boundaries.test.mjs', assertion: /unsupported colour encounters retain consulted property and raw value/ },
+  { name: 'ordinary OFF allocation', file: paths[1], from: 'const opts = { ...DEFAULT_SANITIZE_OPTIONS, ...options };', to: 'const opts = { ...DEFAULT_SANITIZE_OPTIONS, ...options }; new Map();',
+    test: 'trial cost OFF', suite: 'test/concealed-cost.test.mjs', assertion: /OFF incremental reads allocations and collection writes are zero/ },
+  { name: 'ordinary OFF DOM read', file: paths[1], from: 'function shallow(node) {', to: 'function shallow(node) { void node.nodeType;',
+    test: 'trial cost OFF matches', suite: 'test/concealed-cost.test.mjs', assertion: /OFF entire-pipeline DOM read, explicit allocation and collection-write increment is zero/ },
+  { name: 'pending slot membership', file: paths[3], from: 'info.projectedVia = via;', to: 'void via;',
+    test: 'trial pending slot projections', suite: 'test/concealed-boundaries.test.mjs', assertion: /pending slot membership includes assigned source blocks through slot ancestors/ },
   { name: 'collection write', file: paths[0], from: 'const raw = declaration(el);\n    const display',
     to: 'images.set(el, 0);\n    const raw = declaration(el);\n    const display',
     test: 'varied opaque visible colours', suite: 'test/concealed-cost.test.mjs', assertion: /ordinary detector collection writes must be zero/ },

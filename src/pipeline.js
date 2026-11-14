@@ -1,0 +1,225 @@
+import { DOM_GET_ATTRIBUTE, DOM_QUERY_SELECTOR, DOM_TEXT_CONTENT, DOM_DOCUMENT_ELEMENT, DOM_INNER_HTML } from "./dom.js";
+// page-markdown: a page's DOM in, clean Markdown and metadata out.
+// sanitize → standardize → extract → convert → clean (→ mode) (→ hidden text)
+import { sanitizeToInertDocument } from "./sanitize.js";
+import { standardizeDocument } from "./standardize.js";
+import { extractContent } from "./extract.js";
+import { htmlToMarkdown } from "./convert.js";
+import { cleanMarkdown, applyMode, mapOutsideFences } from "./clean.js";
+import { collectMetadata } from "./metadata.js";
+import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
+import { collectPageFacts, pageFactsMarkdown, escapeMarkdown } from "./facts.js";
+import { removeHiddenText, hiddenTextOmissions } from "./hidden.js";
+
+export const VERSION = "0.3.1";
+
+function documentOf(input) {
+  if (input?.nodeType === 9) return input;
+  if (input?.nodeType === 1) return input.ownerDocument;
+  throw new TypeError("page-markdown: expected a Document or Element");
+}
+
+function toMarkdown(html, mode) {
+  const converted = htmlToMarkdown(html);
+  const { markdown, removedJsonLines } = cleanMarkdown(converted);
+  return { markdown: applyMode(markdown, mode), removedJsonLines, convertedChars: converted.length };
+}
+
+// What relative links resolve against: the page's <base href>, else its URL.
+function baseUrl(doc, url) {
+  const href = doc[DOM_QUERY_SELECTOR]?.("base[href]")?.[DOM_GET_ATTRIBUTE]("href");
+  try {
+    return href ? new URL(href, url || undefined).href : url;
+  } catch {
+    return url;
+  }
+}
+
+// A top-level heading in the prose; a "# comment" line in fenced code is not one.
+function hasTopHeading(markdown) {
+  let found = false;
+  mapOutsideFences(markdown, (prose) => {
+    found ||= /^# \S/m.test(prose);
+    return prose;
+  });
+  return found;
+}
+
+/**
+ * @typedef {object} PageMarkdownOptions
+ * @property {string} [url] page URL for absolute links (default: the document's URL)
+ * @property {"full"|"no_links"|"text_only"} [mode="full"]
+ * @property {"readable"|"full"|import("./extract.js").Extractor} [extract="readable"]
+ *   "readable": Readability with main-content or full-page fallback; "full": the whole body;
+ *   or a custom extractor receiving a copy of the standardized document.
+ * @property {number} [minExtractChars=100] below this, fall back to the page's <main>
+ *   if it marks one and it holds enough, else to the full page
+ * @property {number} [minExtractShare=0.4] when Readability keeps less than this
+ *   share of the page's main content, use the main content instead; 0 turns it off
+ * @property {boolean} [includeFullPage=false] also return the full-page Markdown
+ * @property {boolean} [detectConcealedText=false] opt-in live computed-style check, default false
+ * @property {"off"|"trial"} [diagnostics="off"] trial observations require page-markdown/trial
+ * @property {boolean} [includeTitle=true] start readable output with "# <headline>"
+ * @property {boolean} [recoverLead=true] restore a dropped lead paragraph that matches the meta description
+ * @property {boolean} [pageFacts=false] append "## Page facts": short label/value pairs
+ *   (sidebar versions, prices, spec rows) that the extracted article left out
+ * @property {boolean} [removeHiddenText=false] remove tag-character text,
+ *   variation-selector runs and invisible operators from the Markdown (fenced
+ *   code included), fullPageMarkdown and metadata; omissions count the runs
+ *   removed from the Markdown
+ * @property {import("./types.js").SanitizeOptions} [sanitize] see DEFAULT_SANITIZE_OPTIONS
+ * @property {import("./types.js").ReadabilityOptions} [readability] options passed to Readability
+ */
+
+/**
+ * Converts a page (or an element of it) to Markdown.
+ * Pure with respect to the input: the live document is only read.
+ *
+ * @param {Document|Element} input
+ * @param {PageMarkdownOptions} [options]
+ * @param {import("./trial.js").Trial|null} [trial] internal capture observer
+ * @returns {import("./types.js").PageMarkdownResult}
+ */
+export function runPipeline(input, options = {}, trial = null) {
+  const doc = documentOf(input);
+  const url = options.url || doc.URL || doc.location?.href || "";
+  const mode = options.mode || "full";
+  /** @type {string[]} */
+  const warnings = [];
+
+  /** @type {import("./types.js").SanitizeOptions} */
+  const sanitizeOptions = {
+    ...options.sanitize,
+    detectConcealedText: options.detectConcealedText ?? options.sanitize?.detectConcealedText ?? false,
+  };
+  const { document: inert, omissions, concealment } = sanitizeToInertDocument(input, sanitizeOptions, trial);
+  const standardizeOptions = { url: baseUrl(doc, url), concealment };
+  if (trial) standardizeOptions.trial = trial;
+  const standardization = standardizeDocument(inert, standardizeOptions);
+  if (concealment.pendingOpacity) warnings.push(`Pending opacity content retained in ${concealment.pendingOpacity} element(s): provisional scroll-reveal policy`);
+  if (concealment.check === "incomplete") warnings.push("Concealed text check incomplete: computed-style values unavailable");
+  if (concealment.summary.truncated) warnings.push("Concealed text report truncated at capture limits; counts include uncapped text");
+  const extractOptions = {
+    extract: options.extract,
+    minExtractChars: options.minExtractChars,
+    minExtractShare: options.minExtractShare,
+    readability: options.readability,
+  };
+  if (trial) { trial.start(inert); extractOptions.trial = trial; }
+  const extraction = extractContent(inert, extractOptions);
+  if (trial) trial.clean(inert);
+  const fallbackTarget = extraction.method === "main_content" ? "the main content" : "the full page";
+  if (extraction.fallbackReason) {
+    warnings.push(`extraction fell back to ${fallbackTarget}: ${extraction.fallbackReason}`);
+  }
+  if (omissions.shadowHosts) warnings.push(`shadow content cut off at the capture limit in ${omissions.shadowHosts} host(s); the page's main content may be missing`);
+
+  const pageMetadata = collectMetadata(doc, { url });
+  let extractedHtml = extraction.html;
+  let leadRecovered = false;
+  if (extraction.method !== "full_page" && options.recoverLead !== false) {
+    ({ html: extractedHtml, recovered: leadRecovered } = recoverLeadParagraph(extractedHtml, inert, pageMetadata.description));
+  }
+  const headline = chooseHeadline(inert, { ...pageMetadata, extractedTitle: extraction.title });
+
+  const main = toMarkdown(extractedHtml, mode);
+  // Readability lifts the article's H1 out as its title; put a clean heading
+  // back so the capture stands alone, unless the body still has a top-level one.
+  if (options.includeTitle !== false && ["readability", "main_content"].includes(extraction.method) && mode !== "text_only") {
+    if (headline && !hasTopHeading(main.markdown)) {
+      main.markdown = `# ${headline}\n\n${main.markdown}`;
+      if (trial) trial.titleAdded = true;
+    }
+  }
+  let pageFacts = [];
+  if (options.pageFacts && extraction.method !== "full_page" && mode !== "text_only") {
+    pageFacts = collectPageFacts(inert, extractedHtml);
+    if (pageFacts.length) main.markdown = `${main.markdown}\n\n${pageFactsMarkdown(pageFacts)}`;
+  }
+  /** @type {import("./types.js").PageMarkdownOmission[]} */
+  const omissionList = [];
+  if (concealment.summary.count) {
+    omissionList.push({ kind: "concealed_text", count: concealment.summary.count, chars: concealment.summary.chars,
+      note: `Concealed text omitted: ${concealment.summary.count} block(s), ${concealment.summary.chars} UTF-16 units` });
+  }
+  if (omissions.shadowHosts) {
+    omissionList.push({ kind: "shadow_content", count: omissions.shadowHosts, note: "Open shadow content omitted: capture limit" });
+  }
+  if (main.removedJsonLines) {
+    omissionList.push({ kind: "json_line", count: main.removedJsonLines, note: "Large single-line JSON documents removed" });
+  }
+  if (standardization.omittedTabs.length) {
+    const count = standardization.omittedTabs.length;
+    const labels = standardization.omittedTabs.filter(Boolean).map(escapeMarkdown).join(", ");
+    omissionList.push({ kind: "inactive_tabs", count, note: labels ? `Other tabs not included: ${labels}` : `${count} other tab(s) not included` });
+  }
+  if (extraction.commentsOmitted) {
+    omissionList.push({ kind: "comments", count: 1, note: "Comment section not included" });
+  }
+
+  /** @type {import("./types.js").PageMarkdownResult} */
+  const result = {
+    version: VERSION,
+    concealedText: concealment.entries,
+    concealmentCheck: concealment.check,
+    concealedTextTruncated: concealment.summary.truncated,
+    markdown: main.markdown,
+    metadata: {
+      ...pageMetadata,
+      ...(headline ? { headline } : {}),
+      ...(extraction.title ? { extractedTitle: extraction.title } : {}),
+      ...(extraction.byline ? { byline: extraction.byline } : {}),
+    },
+    extraction: {
+      method: extraction.method,
+      ...(extraction.fallbackReason ? { fallbackReason: extraction.fallbackReason } : {}),
+      ...(leadRecovered ? { leadRecovered: true } : {}),
+      ...(pageFacts.length ? { pageFacts: pageFacts.length } : {}),
+    },
+    omissions: omissionList,
+    warnings,
+    stats: {
+      mode,
+      extractedHtmlChars: extraction.html.length,
+      convertedChars: main.convertedChars,
+      markdownChars: main.markdown.length,
+      pageTextChars: (inert.body?.[DOM_TEXT_CONTENT] || "").replace(/\s+/g, " ").trim().length,
+      standardization,
+    },
+  };
+
+  if (options.includeFullPage) {
+    const full = extraction.method === "full_page"
+      ? main
+      : toMarkdown((inert.body || inert[DOM_DOCUMENT_ELEMENT])[DOM_INNER_HTML] || "", mode);
+    result.fullPageMarkdown = full.markdown;
+  }
+  if (options.removeHiddenText) {
+    const cleaned = removeHiddenText(result.markdown);
+    result.markdown = cleaned.text;
+    result.omissions.push(...hiddenTextOmissions(cleaned.runs));
+    if (result.fullPageMarkdown !== undefined) result.fullPageMarkdown = removeHiddenText(result.fullPageMarkdown).text;
+    for (const [key, value] of Object.entries(result.metadata)) {
+      if (typeof value === "string") result.metadata[key] = removeHiddenText(value).text;
+    }
+  }
+  // A caller may pass on only the Markdown, so what changes the content says so
+  // in it too. Tab labels are page text: hidden-text removal applies to them.
+  const notices = [
+    ...(extraction.fallbackReason ? [`Captured ${fallbackTarget} instead of the article (\`${extraction.fallbackReason}\`)`] : []),
+    ...omissionList.filter(({ kind }) => ["json_line", "inactive_tabs", "comments"].includes(kind)).map((omission) => omission.note),
+    ...(omissions.shadowHosts ? [`Open shadow content omitted: capture limit (${omissions.shadowHosts} host(s))`] : []),
+  ].map((notice) => (options.removeHiddenText ? removeHiddenText(notice).text : notice));
+  for (const notice of notices) result.markdown += `\n\n_${notice}._`;
+  const concealedNotice = omissionList.find(({ kind }) => kind === "concealed_text")?.note;
+  if (concealedNotice) {
+    result.markdown += `\n\n_${concealedNotice}._`;
+    if (result.fullPageMarkdown !== undefined) result.fullPageMarkdown += `\n\n_${concealedNotice}._`;
+  }
+  result.stats.markdownChars = result.markdown.length;
+  if (trial) result.diagnostics = trial.finish(concealment.check,
+    typeof options.extract === 'function' || !!options.readability?.serializer,
+    { title: trial.titleAdded,
+      recoveredLead: leadRecovered, pageFacts: pageFacts.length }, concealment.summary.truncated);
+  return result;
+}

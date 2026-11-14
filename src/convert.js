@@ -1,3 +1,4 @@
+import { DOM_GET_ATTRIBUTE, DOM_HAS_ATTRIBUTE, DOM_QUERY_SELECTOR, DOM_QUERY_SELECTOR_ALL, DOM_TEXT_CONTENT } from "./dom.js";
 // Stage 4: HTML to Markdown with Turndown plus GitHub-flavoured rules:
 // strikethrough, task-list checkboxes and tables. Every data table becomes a
 // GFM table, never raw HTML.
@@ -14,17 +15,17 @@ export const TURNDOWN_OPTIONS = Object.freeze({
 });
 
 function linkDestination(node) {
-  const href = node.getAttribute("href").replace(/([()])/g, "\\$1");
-  const title = (node.getAttribute("title") || "").replace(/\s*\n+\s*/g, " ").replace(/"/g, '\\"');
+  const href = node[DOM_GET_ATTRIBUTE]("href").replace(/([()])/g, "\\$1");
+  const title = (node[DOM_GET_ATTRIBUTE]("title") || "").replace(/\s*\n+\s*/g, " ").replace(/"/g, '\\"');
   return `${href}${title ? ` "${title}"` : ""}`;
 }
 
 function gfmInlineRules(turndown) {
   // Link text is one line: a link around blocks would otherwise split across lines.
   turndown.addRule("pmInlineLink", {
-    filter: (node) => node.nodeName === "A" && Boolean(node.getAttribute("href")),
+    filter: (node) => node.nodeName === "A" && Boolean(node[DOM_GET_ATTRIBUTE]("href")),
     replacement(content, node) {
-      if (node.querySelector("h1, h2, h3, h4, h5, h6")) return `\n\n${content}\n\n`;
+      if (node[DOM_QUERY_SELECTOR]("h1, h2, h3, h4, h5, h6")) return `\n\n${content}\n\n`;
       return `[${content.trim().replace(/\s*\n+\s*/g, " ")}](${linkDestination(node)})`;
     },
   });
@@ -34,7 +35,7 @@ function gfmInlineRules(turndown) {
       content = content.trim();
       if (!content) return "";
       const link = closest(node, "A");
-      if (link?.getAttribute("href")) content = `[${content.replace(/\s*\n+\s*/g, " ")}](${linkDestination(link)})`;
+      if (link?.[DOM_GET_ATTRIBUTE]("href")) content = `[${content.replace(/\s*\n+\s*/g, " ")}](${linkDestination(link)})`;
       return `\n\n${"#".repeat(Number(node.nodeName[1]))} ${content}\n\n`;
     },
   });
@@ -45,8 +46,8 @@ function gfmInlineRules(turndown) {
   // A checkbox at the start of a list item (directly, or in a label or span).
   turndown.addRule("pmTaskListItem", {
     filter(node) {
-      const isCheckbox = (node.nodeName === "INPUT" && String(node.getAttribute("type")).toLowerCase() === "checkbox")
-        || node.getAttribute?.("role") === "checkbox";
+      const isCheckbox = (node.nodeName === "INPUT" && String(node[DOM_GET_ATTRIBUTE]("type")).toLowerCase() === "checkbox")
+        || node[DOM_GET_ATTRIBUTE]?.("role") === "checkbox";
       if (!isCheckbox) return false;
       const parent = node.parentNode;
       return parent?.nodeName === "LI"
@@ -54,8 +55,8 @@ function gfmInlineRules(turndown) {
     },
     replacement(content, node) {
       const checked = node.nodeName === "INPUT"
-        ? Boolean(node.checked) || node.hasAttribute?.("checked")
-        : node.getAttribute("aria-checked") === "true";
+        ? Boolean(node.checked) || node[DOM_HAS_ATTRIBUTE]?.("checked")
+        : node[DOM_GET_ATTRIBUTE]("aria-checked") === "true";
       return checked ? "[x] " : "[ ] ";
     },
   });
@@ -85,7 +86,7 @@ function rowCells(row) {
 }
 
 function spanOf(cell) {
-  const span = Number.parseInt(cell.getAttribute?.("colspan") || "1", 10);
+  const span = Number.parseInt(cell[DOM_GET_ATTRIBUTE]?.("colspan") || "1", 10);
   return Number.isFinite(span) && span > 1 ? Math.min(span, 50) : 1;
 }
 
@@ -117,7 +118,7 @@ function tableGrid(rows) {
       take();
       before.set(cell, slots);
       columns.set(cell, column);
-      const rowspan = Number.parseInt(cell.getAttribute?.("rowspan"), 10);
+      const rowspan = Number.parseInt(cell[DOM_GET_ATTRIBUTE]?.("rowspan"), 10);
       const left = rowspan === 0 ? Infinity : rowspan - 1;
       const span = spanOf(cell);
       for (let i = 0; i < span; i += 1) {
@@ -141,11 +142,11 @@ function tableInfo(table) {
   const rows = tableRows(table);
   // Layout tables (nesting, a single cell, a single column) read better as
   // blocks than as a grid.
-  const layout = Boolean(table.querySelector?.("table")) || !rows.length
+  const layout = Boolean(table[DOM_QUERY_SELECTOR]?.("table")) || !rows.length
     || Math.max(...rows.map((row) => rowCells(row).reduce((sum, cell) => sum + spanOf(cell), 0))) <= 1;
   // A GFM cell is one line, so a data table holding code blocks is rendered as
   // blocks too, each cell under its column's header: the code stays fenced.
-  const block = layout || Boolean(table.querySelector?.("pre"));
+  const block = layout || Boolean(table[DOM_QUERY_SELECTOR]?.("pre"));
   info = { layout, block, header: columnHeaders(rows[0]), text: new Map(), ...tableGrid(rows) };
   tables.set(table, info);
   return info;
@@ -162,7 +163,7 @@ function slotsMarkdown(slots, info) {
 }
 
 function labelText(cell) {
-  return String(cell.textContent || "").replace(/\s+/g, " ").trim();
+  return String(cell[DOM_TEXT_CONTENT] || "").replace(/\s+/g, " ").trim();
 }
 
 // A first row of two or more <th>: column headers. (A single spanning <th>
@@ -216,8 +217,8 @@ function cellText(content) {
 // An icon's straight strokes, as lists of points; null if any stroke curves.
 function iconStrokes(svg) {
   const strokes = [];
-  for (const shape of Array.from(svg.querySelectorAll?.("path, polyline, line") || [])) {
-    const at = (name) => shape.getAttribute(name);
+  for (const shape of Array.from(svg[DOM_QUERY_SELECTOR_ALL]?.("path, polyline, line") || [])) {
+    const at = (name) => shape[DOM_GET_ATTRIBUTE](name);
     const d = at("d") ?? `M${at("points") ?? `${at("x1")} ${at("y1")} ${at("x2")} ${at("y2")}`}`;
     const tokens = d.match(/[a-zA-Z]|-?\d*\.?\d+/g) || [];
     let x = 0;
@@ -260,9 +261,9 @@ function iconShape(strokes) {
 // A cell holding only an icon would be empty, and the table couldn't say which
 // plan has what: its accessible name, else its shape, else that an icon is there.
 function cellIcon(cell) {
-  const svg = cell.querySelector?.("svg");
+  const svg = cell[DOM_QUERY_SELECTOR]?.("svg");
   if (!svg) return "";
-  return svg.getAttribute("aria-label")?.trim() || svg.querySelector("title")?.textContent?.trim()
+  return svg[DOM_GET_ATTRIBUTE]("aria-label")?.trim() || svg[DOM_QUERY_SELECTOR]("title")?.[DOM_TEXT_CONTENT]?.trim()
     || iconShape(iconStrokes(svg)) || "[icon]";
 }
 
@@ -313,7 +314,7 @@ function tableRules(turndown) {
       });
       // GFM needs a header row; the first row serves when the table has none.
       const separator = `|${" --- |".repeat(width)}`;
-      const caption = node.querySelector?.("caption")?.textContent?.trim();
+      const caption = node[DOM_QUERY_SELECTOR]?.("caption")?.[DOM_TEXT_CONTENT]?.trim();
       const body = [padded[0], separator, ...padded.slice(1)].join("\n");
       return `\n\n${caption ? `${cellText(caption)}\n\n` : ""}${body}\n\n`;
     },

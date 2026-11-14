@@ -1,3 +1,4 @@
+import { DOM_QUERY_SELECTOR, DOM_QUERY_SELECTOR_ALL, DOM_TEXT_CONTENT } from "./dom.js";
 // Corrections after extraction, using the standardized clone and the page's
 // metadata: restore a lead paragraph the extractor dropped, and choose a clean
 // title heading.
@@ -40,9 +41,9 @@ export function recoverLeadParagraph(html, doc, description) {
   const lead = norm(description);
   if (lead.length < MIN_LEAD_CHARS) return { html, recovered: false };
   const extracted = withoutSpaces(norm(htmlText(html)));
-  const paragraphs = Array.from(doc.querySelectorAll?.("p") || []).slice(0, 300);
+  const paragraphs = Array.from(doc[DOM_QUERY_SELECTOR_ALL]?.("p") || []).slice(0, 300);
   for (const p of paragraphs) {
-    const text = norm(p.textContent);
+    const text = norm(p[DOM_TEXT_CONTENT]);
     if (text.length < MIN_LEAD_CHARS || !startsAlike(text, lead)) continue;
     if (extracted.includes(withoutSpaces(text.slice(0, 80)))) return { html, recovered: false };
     return { html: `${p.outerHTML}\n${html}`, recovered: true };
@@ -58,8 +59,8 @@ function cleanHeading(text) {
 }
 
 function firstHeading(doc) {
-  const scoped = doc.querySelector?.("main h1, article h1, [role='main'] h1");
-  return cleanHeading((scoped || doc.querySelector?.("h1"))?.textContent);
+  const scoped = doc[DOM_QUERY_SELECTOR]?.("main h1, article h1, [role='main'] h1");
+  return cleanHeading((scoped || doc[DOM_QUERY_SELECTOR]?.("h1"))?.[DOM_TEXT_CONTENT]);
 }
 
 // Drops site-name segments at either end: "Page | Site", "Site - Page".

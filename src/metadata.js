@@ -1,3 +1,4 @@
+import { DOM_GET_ATTRIBUTE, DOM_QUERY_SELECTOR, DOM_QUERY_SELECTOR_ALL, DOM_TEXT_CONTENT, DOM_DOCUMENT_ELEMENT } from "./dom.js";
 // Page metadata from the original document (read-only): meta tags, JSON-LD,
 // canonical link and language. The sanitized clone has no <meta> or scripts.
 
@@ -7,7 +8,7 @@ function clean(value, limit = 500) {
 
 function meta(doc, selectors) {
   for (const selector of selectors) {
-    const value = doc.querySelector?.(selector)?.getAttribute?.("content");
+    const value = doc[DOM_QUERY_SELECTOR]?.(selector)?.[DOM_GET_ATTRIBUTE]?.("content");
     if (value && value.trim()) return clean(value);
   }
   return "";
@@ -25,9 +26,9 @@ function absolute(value, base) {
 
 function jsonLdNodes(doc) {
   const nodes = [];
-  for (const script of Array.from(doc.querySelectorAll?.('script[type="application/ld+json"]') || [])) {
+  for (const script of Array.from(doc[DOM_QUERY_SELECTOR_ALL]?.('script[type="application/ld+json"]') || [])) {
     try {
-      const data = JSON.parse(script.textContent || "");
+      const data = JSON.parse(script[DOM_TEXT_CONTENT] || "");
       const queue = Array.isArray(data) ? [...data] : [data];
       while (queue.length) {
         const node = queue.shift();
@@ -60,20 +61,20 @@ export function collectMetadata(doc, options = {}) {
   const url = options.url || doc.URL || doc.location?.href || "";
   const ld = jsonLdNodes(doc);
   const article = ld.find((node) => ARTICLE_TYPES.test(String(node["@type"] || ""))) || {};
-  const canonicalHref = doc.querySelector?.("link[rel='canonical']")?.getAttribute?.("href") || "";
+  const canonicalHref = doc[DOM_QUERY_SELECTOR]?.("link[rel='canonical']")?.[DOM_GET_ATTRIBUTE]?.("href") || "";
   let hostname = "";
   try { hostname = url ? new URL(url).hostname : ""; } catch { /* keep empty */ }
 
   return {
     url,
     canonicalUrl: absolute(canonicalHref, url) || url,
-    documentTitle: clean(doc.title || doc.querySelector?.("title")?.textContent || ""),
+    documentTitle: clean(doc.title || doc[DOM_QUERY_SELECTOR]?.("title")?.[DOM_TEXT_CONTENT] || ""),
     title: meta(doc, ["meta[property='og:title']", "meta[name='twitter:title']"]) || clean(article.headline || "") || clean(doc.title || ""),
     description: meta(doc, ["meta[name='description']", "meta[property='og:description']", "meta[name='twitter:description']"]),
     author: meta(doc, ["meta[name='author']", "meta[property='article:author']", "meta[name='byl']"]) || nameOf(article.author),
     published: meta(doc, ["meta[property='article:published_time']", "meta[name='date']", "meta[itemprop='datePublished']"]) || clean(article.datePublished || ""),
     modified: meta(doc, ["meta[property='article:modified_time']", "meta[itemprop='dateModified']", "meta[name='last-modified']"]) || clean(article.dateModified || ""),
     siteName: meta(doc, ["meta[property='og:site_name']", "meta[name='application-name']"]) || nameOf(article.publisher) || hostname,
-    lang: clean(doc.documentElement?.getAttribute?.("lang") || "", 40),
+    lang: clean(doc[DOM_DOCUMENT_ELEMENT]?.[DOM_GET_ATTRIBUTE]?.("lang") || "", 40),
   };
 }
