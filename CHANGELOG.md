@@ -4,6 +4,82 @@
 
 - AP News photos appeared as code blocks and repeated captions. Images now render as images and matching captions appear once.
 - Gallery photos repeated captions and credits on Ars Technica's MacBook Pro review; each now appears once, with the caption before the credit.
+
+## 0.3.1 — 2026-11-14
+
+- Add the separate `page-markdown/trial` entry and declarations for diagnostics
+  only. Ordinary `page-markdown` consumers do not ship trial code. The main entry
+  throws `TrialEntryRequiredError` for `diagnostics: "trial"`, directing callers
+  to the trial entry. The main bundle ceiling remains 86 KB.
+- On the trial entry, add independent `diagnostics: "off" | "trial"` (default OFF). OFF branches
+  before diagnostic setup, association, provenance and finalization; detector
+  bounds and conversion output remain unchanged.
+- Trial diagnostics expose canonical source identities and UTF-16 ranges,
+  fingerprints, lifted-run links, pending-opacity element locations, consulted
+  unsupported-colour encounters, bounded populations and extraction membership.
+  Inert provenance is stripped before Markdown/custom extraction; code and aside
+  transformations preserve ranges. Custom/unverifiable output is unmatched.
+- Bound source census, metadata and inert provenance work; caps report
+  incomplete/unknown coverage. Keep additions separate from extraction and
+  record HELIOS's deferred planner protection. This package slice supplies no
+  heuristic, bridge transport or screenshot proof.
+- Extend count-based cost, fixture parity, hand-labelled range and mutation
+  controls.
+
+## 0.3.0 — 2026-11-13
+
+- Build the live-style report with `npm run report:build`, then open `.browser-test/concealment-report.html` in an already running browser.
+
+- **Opt-in:** enable `detectConcealedText: true` to separate text concealed by
+  supported live source-document computed styles:
+  `display:none`, hidden/collapsed visibility, zero opacity, zero font size and
+  supported empty clips (including nonzero zero-area rects; legacy `clip`
+  requires absolute/fixed positioning), transparent text and text exactly
+  matching its own or nearest opaque background
+  into capped `concealedText`, with uncapped omission
+  counts and notices in both Markdown outputs. Detection is off by default;
+  HELIOS enables it explicitly. Default-on is withdrawn for 0.3.0 and will be
+  reconsidered after a real-site trial. Disabled detection makes no style calls.
+  Static documents retain previous output.
+  Whitespace-only groups are excluded from entries, totals, truncation and
+  notices, also correcting slice 1; substantive groups retain original
+  whitespace and UTF-16 counts.
+  Source whitespace is removed for display-none and zero-font-size runs; other
+  reasons retain whitespace-only runs and replace substantive runs with one
+  ordinary space only when their original text starts or ends with JavaScript
+  whitespace.
+  The check reports computed, static-only, disabled or incomplete capability.
+  Short tabs and existing answer/code exceptions remain; independent reasons
+  still lift text and can change extraction choice and tab omissions.
+  Opacity-applicable transitions and named animations with nonzero durations
+  retain text with a warning; this scroll-reveal rule remains provisional
+  pending real-site evidence and Astra review.
+  Colour detection handles computed sRGB rgb()/rgba() only, for own text.
+  OKLCH and Display P3 computed colours are not parsed, so even white text on
+  white in those forms can stay in the output.
+  Measured in Chrome 157 on Windows, on one machine, using synthetic pages
+  of 20,006 elements built from `95bf97d`, with five warmed alternating pairs
+  per page: full conversion with detection added a paired-median 100.5 ms
+  on the deep page and 108.5 ms on the shallow page, about 12.5% each.
+  Both full-conversion targets (at most 25% and at most 250 ms added) were met.
+  The sanitize stage with detection (including preparation and lift) added
+  about 127 ms on either page. The earlier candidate (`2a3b0b5`) added about
+  442 ms deep and 340 ms shallow by a difference of medians, which is not
+  directly comparable. This is not a general performance guarantee;
+  real-site cost is not yet measured.
+  Chrome is the only browser tested; Firefox and
+  Safari are untested.
+  Unknown colours, missing opaque backgrounds, intervening translucent layers
+  or images, text clipping, differing text fill, shadows and strokes prevent
+  equality detection. Fully transparent text fill is detected when no other
+  effect paints the text. Near-colour matches and partially transparent text
+  with non-zero alpha (including alpha 0.01) are not detected. White text on a
+  page with no declared
+  opaque background is not detected: the root background is unknown.
+
+- Boxes a page marks as skippable are left out of the article: a box that opens with a
+  link to the end marker it closes with, as BBC's "most read" and podcast boxes do in
+  every language. Boxes holding a quote, embed, code or table stay.
 - Malformed web links keep their text without a link even in browsers that accept spaces in hostnames.
 - Table cells with `rowspan="0"` span to the end of their row group, including with `colspan`.
 - Text-only output keeps image alt text without URL fragments from parentheses or titles.

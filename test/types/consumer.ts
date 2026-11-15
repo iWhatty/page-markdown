@@ -39,6 +39,7 @@ const options: PageMarkdownOptions = {
   recoverLead: false,
   pageFacts: true,
   removeHiddenText: true,
+  detectConcealedText: false,
   sanitize: { stripAds: false, extraStripSelectors: ["#panel"], shadowNodeLimit: 10 },
   readability: { charThreshold: 100, keepClasses: false },
 };
@@ -89,11 +90,23 @@ for (const omission of result.omissions) {
   if (omission.kind === "shadow_content" || omission.kind === "json_line" || omission.kind === "inactive_tabs" || omission.kind === "comments") {
     // @ts-expect-error no chars on this kind
     omission.chars;
+  } else if (omission.kind === "concealed_text") {
+    const chars: number = omission.chars;
+    console.log(chars);
   } else {
     const chars: number = omission.chars;
     console.log(chars, omission.kind satisfies "hidden_tag" | "hidden_variation_selector" | "hidden_invisible_operator" | "hidden_reserved_tag_plane");
   }
 }
+
+export const concealment: "computed" | "static-only" | "disabled" | "incomplete" = result.concealmentCheck;
+export const truncated: boolean = result.concealedTextTruncated;
+for (const entry of result.concealedText) {
+  const reason: "display_none" | "visibility_hidden" | "opacity_zero" | "font_size_zero" | "clipped" | "transparent_text" | "same_color" = entry.reason;
+  console.log(reason, entry.chars satisfies number, entry.text satisfies string);
+}
+
+export const colourReasons: PageMarkdownResult["concealedText"][number]["reason"][] = ["transparent_text", "same_color"];
 
 // Stages, in pipeline order.
 const { document: inert, omissions } = sanitizeToInertDocument(page, DEFAULT_SANITIZE_OPTIONS);

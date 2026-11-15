@@ -1,5 +1,7 @@
 # page-markdown
 
+Current package version: **0.3.1**.
+
 Faithful page-to-Markdown for humans and agents. Give it a web page's DOM and
 it returns clean Markdown plus metadata. It is written for browsers, for
 example an extension's content script, and runs in Node with a DOM library.
@@ -100,6 +102,124 @@ The stages are also exported for advanced use: `sanitizeToInertDocument`,
 
 A `?` marks a field that is absent, not empty, when it doesn't apply.
 
+### Concealed text (opt-in)
+
+Detection is off by default. Enable it for a live document:
+
+```js
+const result = pageToMarkdown(document, {
+  detectConcealedText: true,
+  includeFullPage: true,
+});
+```
+
+Supported computed styles separate concealed DOM text from the article and
+return it in `concealedText` as `{ reason, chars, text }` blocks. Text is capped
+at 2,048 UTF-16 units per block, 16,384 total and 100 entries;
+`concealedTextTruncated` reports capping. Omission counts and character totals
+are uncapped. A `Concealed text omitted:` notice appears in both `markdown`
+and `fullPageMarkdown` when text is captured.
+
+The seven reasons are `display_none`, `visibility_hidden`, `opacity_zero`,
+`font_size_zero`, `clipped`, `transparent_text` and `same_color`. Supported
+clips are zero-area legacy rectangles on absolute/fixed elements,
+`inset(50%)` and zero-radius circles. Colour checks compare computed sRGB
+rgb()/rgba() values for an element's own text against its own or nearest
+declared opaque background.
+
+`concealmentCheck` is `disabled` by default (no computed-style calls),
+`static-only` when enabled without a computed-style API, `computed` after a
+successful check, or `incomplete` if the capability probe or a consulted
+property fails. Detection applies to live documents only; enabled static
+input retains its previous output. A top-level `detectConcealedText` option
+takes precedence over `sanitize.detectConcealedText`, then the default false.
+
+Limits include white text with no declared opaque background, non-zero alpha,
+near-colour matches, and unparsed OKLCH and Display P3 colours. Intervening
+images or translucent backgrounds and uncertain text painting effects prevent
+colour equality detection. Existing short inactive tab, collapsed answer and
+code wrapper exceptions remain; independent concealment reasons still apply.
+Off-screen or covered text, attributes, metadata and custom-extractor output
+are outside this check.
+
+The scroll-reveal rule is **provisional**: zero-opacity content with an
+opacity-applicable transition or named animation of nonzero duration stays
+in place with a warning. A declaration does not prove it will appear, and a
+page can use one to evade detection. Real-site validation is still required.
+Chrome is the only browser tested; Firefox and Safari are untested.
+
+### Trial diagnostics (0.3.1, opt-in)
+
+Import `pageToMarkdown` from **`page-markdown/trial`** for diagnostics only.
+Ordinary consumers importing `page-markdown` do not ship trial code. The main
+entry throws `TrialEntryRequiredError` if passed `diagnostics: "trial"`, with
+an instruction to use the trial entry, so a missed import migration is explicit.
+
+On the trial entry, `diagnostics: "off" | "trial"` defaults to `"off"`, independently of
+`detectConcealedText`. OFF creates no diagnostic state and adds no ordinary
+content reads, explicit allocations or collection writes. Trial captures are
+instrumented observations; exclude them from ordinary conversion timing.
+
+```js
+import { pageToMarkdown } from "page-markdown/trial";
+
+const { markdown, diagnostics } = pageToMarkdown(document, {
+  detectConcealedText: true,
+  diagnostics: "trial",
+});
+```
+
+The optional `diagnostics` result uses `page-markdown.trial.v1` and contains:
+
+- `blocks`: ordered source segments with IDs, locators, fingerprints, source
+  UTF-16 `ranges` in source `order`, `retained`/`removed` intervals, `membership`
+  and `outputBlocks` links.
+  Shared output links describe merges; multiple links describe splits.
+- `lifted`: links from the existing concealed-text entry index and reason to
+  source ranges; `pendingOpacity`: element locators and affected block IDs;
+  `unsupportedColours`: locators, consulted properties, bounded raw values and
+  `oklch`, `display-p3` or `other` syntax, including capability-probe encounters.
+- `census`, `populations`, `limits`, `status`, `limit`, `provenance`,
+  `liftedTextTruncated`, `observedAt` and slot `projections`.
+- `additions`: generated title, recovered lead and page-fact counts, separate
+  from extraction membership; `plannerProtection` records HELIOS's deferred
+  planner protection.
+
+`source-locator.v1` uses all-node child indexes from the document root (including
+doctype/comments), explicit `template`/open-`shadow` steps and separate `slot`
+projection steps preserving the assigned node's source location. The block
+vocabulary matches the detector; nested blocks interrupt direct-content
+segments. IDs combine the owning block locator and first text-node range start.
+Equal-text siblings have distinct IDs; unchanged source trees reproduce them.
+Fingerprints validate carrier text; they are not cryptographic identities.
+
+Membership describes the selected extraction HTML, before Markdown rendering.
+It is `retained`, `removed`, `partial` or `unmatched`; it is never inferred by
+searching for equal strings. Trial-only inert attributes carry provenance
+through existing cloning/serialization, with explicit code-text transfer;
+attributes are removed before conversion and custom extraction. Transfers cover
+Readability's paragraph/ancestor replacements and the existing upper-deck HTML
+round trip; that round trip uses two charged inert passes, reserving capacity
+for extraction and final cleanup. Custom output
+and unverifiable transformations are `unmatched`, even if text is identical.
+
+Admission stops at 100,000 source nodes, depth 256, 500,000 source UTF-16 units
+or 500,000 serialized diagnostic characters (JSON escaping charged before
+allocation). Provenance permits eight inert passes, each bounded by 100,000
+nodes/depth 256, and 256 source-range references per output block. Lifted
+identities, pending elements and colour encounters each have an independent
+100-entry cap; raw colours have a 2,048-unit cap. Existing lifted-text caps stay
+2,048 units/block, 16,384 total and 100 entries. Exhaustion reports
+`incomplete`; unknown omitted source populations stay `"unknown"`.
+
+Detection-off diagnostics report `disabled`/`not-checked`; static input reports
+`static-only` when detection is requested. Neither establishes computed-style
+or visual coverage. Trial observations remain untrusted and separate from
+Markdown, evidence and model answer inputs. HELIOS slice 2 must bind captures to
+document revisions, enforce the combined bridge-body limit, and add heuristic
+and screenshot checkpoint observations. Unsampled or unresolved content is
+never a pass.
+
 ### TypeScript
 
 Types ship with the package, generated from the JSDoc in `src`: `pageToMarkdown`,
@@ -180,8 +300,11 @@ its products. What it still fails on these pages:
 
 - **Promo boxes kept** inside a BBC Arabic article.
 
-Browser bundle: about 77 KB minified, 27 KB gzip (`npm run size`, ceiling 78 KB
+0.3.0 measured baseline: Browser bundle: about 86.0 KB minified, 31.2 KB gzip (`npm run size`, ceiling 86 KB
 minified). Readability is most of it.
+The 0.3.1 candidate puts trial provenance and diagnostics in the separate
+`page-markdown/trial` entry. `npm run size` gates the main entry at the unchanged
+86 KB ceiling and also reports the trial bundle size without a trial size gate.
 
 `npm run ci` runs the contract suite, the type check and the size check, and must
 exit 0 before a commit. It launches no browser, so run the browser check yourself

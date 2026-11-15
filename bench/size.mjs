@@ -19,7 +19,13 @@ const TARGET_MIN_BYTES = 60 * 1024;
 // icon-only table cells, kept site menus, lost sections, collapsed answers). Raise
 // it again only deliberately, with a reason.
 // 76.8 KB: linked headings, note labels, spanned table cells and single captions.
-const BUDGET_MIN_BYTES = 78 * 1024;
+// Raised to 84 KB when the bundle reached 83.0 KB: concealed-text detection from
+// computed style (five reasons, 5.3 KB over the 77.7 KB before it). Owner's
+// decision, 2026-11-12. Raised to 86 KB when the bundle reached 84.9 KB: the
+// colour check (transparent and same-colour text, with the guards that leave
+// gradient headings alone) and the source-whitespace rule. Owner's decision,
+// 2026-11-13.
+const BUDGET_MIN_BYTES = 86 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],
@@ -44,3 +50,11 @@ if (code.length > BUDGET_MIN_BYTES) {
   console.error("over budget");
   process.exitCode = 1;
 }
+
+// Diagnostics are a separate opt-in entry; its size is report-only.
+const trial = await build({
+  entryPoints: ["src/trial.js"], bundle: true, minify: true, format: "esm",
+  platform: "browser", write: false, logLevel: "error",
+});
+const trialCode = trial.outputFiles[0].contents;
+console.log(`trial (report-only): minified ${(trialCode.length / 1024).toFixed(1)} KB, gzip ${(gzipSync(trialCode).length / 1024).toFixed(1)} KB`);
