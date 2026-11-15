@@ -69,12 +69,21 @@ function hasMeaningfulContent(el) {
  */
 function standardizeImages(doc, base, stats) {
   const squash = (text) => (text || "").replace(/\s+/g, " ").trim();
-  for (const element of doc.querySelectorAll("figcaption, .caption")) {
+  // Responsive galleries repeat joined captions as well as lightbox copies.
+  for (const gallery of doc.querySelectorAll(".ars-lightbox")) {
+    const seen = new Set();
+    for (const element of gallery.querySelectorAll(".ars-gallery-caption")) {
+      const caption = squash(element.textContent);
+      if (caption && seen.has(caption)) element.remove();
+      else seen.add(caption);
+    }
+  }
+  for (const element of doc.querySelectorAll("figcaption, .caption, .ars-gallery-caption")) {
     const caption = squash(element.textContent);
     if (!caption || element.closest(".pswp-caption-content") || isHiddenElement(element)) continue;
     const figure = element.closest("figure");
     // PhotoSwipe's copy is hidden by CSS; galleries may have only that copy.
-    for (const copy of (figure || element.parentElement?.parentElement)?.querySelectorAll(".pswp-caption-content") || []) {
+    for (const copy of (figure || element.closest(".ars-lightbox") || element.parentElement?.parentElement)?.querySelectorAll(".pswp-caption-content") || []) {
       if (squash(copy.textContent) === caption) copy.remove();
     }
     for (const img of figure?.querySelectorAll("img") || []) {

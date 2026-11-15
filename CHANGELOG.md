@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Gallery photos repeated captions and credits on Ars Technica's MacBook Pro review; each now appears once, with the caption before the credit.
 - Malformed web links keep their text without a link even in browsers that accept spaces in hostnames.
 - Table cells with `rowspan="0"` span to the end of their row group, including with `colspan`.
 - Text-only output keeps image alt text without URL fragments from parentheses or titles.

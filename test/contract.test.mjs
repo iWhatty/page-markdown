@@ -1064,3 +1064,20 @@ test("grid table captions still appear once above the header", () => {
   assert.equal(htmlToMarkdown("<table><caption>A &amp; B</caption><tr><th>Key</th><th>Value</th></tr><tr><td>one</td><td>two</td></tr></table>"),
     "A & B\n\n| Key | Value |\n| --- | --- |\n| one | two |");
 });
+
+test("gallery captions and credits appear once per photo", () => {
+  for (const extract of ["readable", "full"]) {
+    const { markdown, extraction } = run("regression/gallery-captions.html", { extract });
+    if (extract === "readable") assert.equal(extraction.method, "readability");
+    for (const caption of ["The Dynamic Island on the MacBook Pro.", "Full-screen apps cut off just below the Dynamic Island by default, just like with the notch before."]) {
+      assert.equal(markdown.split(caption).length - 1, 1, caption);
+      assert.ok(markdown.includes(caption + " Samuel Axon"), "caption then credit");
+    }
+    assert.equal(markdown.split("Samuel Axon").length - 1, 2, "one credit per photo");
+    for (const image of ["MacBook-Pro-Dynamic-Island-1024x466.jpg", "MacBook-Pro-fullscreen-1024x415.jpg"]) {
+      assert.equal(markdown.split(image).length - 1, 1, image);
+    }
+    assert.equal(markdown.match(/!\[/g)?.length, 2);
+    assert.ok(markdown.includes("![The Music app full-screen with a black bar along the top]"));
+  }
+});
