@@ -24,8 +24,9 @@ const TARGET_MIN_BYTES = 60 * 1024;
 // decision, 2026-11-12. Raised to 86 KB when the bundle reached 84.9 KB: the
 // colour check (transparent and same-colour text, with the guards that leave
 // gradient headings alone) and the source-whitespace rule. Owner's decision,
-// 2026-11-13.
-const BUDGET_MIN_BYTES = 86 * 1024;
+// 2026-11-13. Raised to 87 KB when the bundle reached 86.5 KB: AP photo
+// sources and captions, and Ars gallery captions. Owner's decision, 2026-11-15.
+const BUDGET_MIN_BYTES = 87 * 1024;
 
 const result = await build({
   entryPoints: ["src/index.js"],

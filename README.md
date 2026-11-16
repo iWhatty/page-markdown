@@ -303,8 +303,10 @@ its products. What it still fails on these pages:
 0.3.0 measured baseline: Browser bundle: about 86.0 KB minified, 31.2 KB gzip (`npm run size`, ceiling 86 KB
 minified). Readability is most of it.
 The 0.3.1 candidate puts trial provenance and diagnostics in the separate
-`page-markdown/trial` entry. `npm run size` gates the main entry at the unchanged
-86 KB ceiling and also reports the trial bundle size without a trial size gate.
+`page-markdown/trial` entry. `npm run size` gates the main entry and also reports
+the trial bundle size without a trial size gate. Unreleased: the AP photo and Ars
+gallery fixes bring the main entry to about 86.5 KB minified (`npm run size`, ceiling 87 KB
+minified).
 
 `npm run ci` runs the contract suite, the type check and the size check, and must
 exit 0 before a commit. It launches no browser, so run the browser check yourself
