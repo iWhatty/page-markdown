@@ -11,7 +11,7 @@ import { recoverLeadParagraph, chooseHeadline } from "./refine.js";
 import { collectPageFacts, pageFactsMarkdown, escapeMarkdown } from "./facts.js";
 import { removeHiddenText, hiddenTextOmissions } from "./hidden.js";
 
-export const VERSION = "0.3.1";
+export const VERSION = "0.3.2";
 
 function documentOf(input) {
   if (input?.nodeType === 9) return input;

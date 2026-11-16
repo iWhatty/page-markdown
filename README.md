@@ -1,6 +1,6 @@
 # page-markdown
 
-Current package version: **0.3.1**.
+Current package version: **0.3.2**.
 
 Faithful page-to-Markdown for humans and agents. Give it a web page's DOM and
 it returns clean Markdown plus metadata. It is written for browsers, for
@@ -304,7 +304,7 @@ its products. What it still fails on these pages:
 minified). Readability is most of it.
 The 0.3.1 candidate puts trial provenance and diagnostics in the separate
 `page-markdown/trial` entry. `npm run size` gates the main entry and also reports
-the trial bundle size without a trial size gate. Unreleased: the AP photo and Ars
+the trial bundle size without a trial size gate. 0.3.2: the AP photo and Ars
 gallery fixes bring the main entry to about 86.7 KB minified (`npm run size`, ceiling 87 KB
 minified).
 

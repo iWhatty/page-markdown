@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 — 2026-11-16
 
 - Fix a slowdown on pages with many in-page links, such as footnotes, present
   in 0.3.0 and 0.3.1. The check for skippable boxes searched the page once per
