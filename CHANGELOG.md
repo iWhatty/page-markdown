@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix a slowdown on pages with many in-page links, such as footnotes, present
+  in 0.3.0 and 0.3.1. The check for skippable boxes searched the page once per
+  link; it now looks each target up once. A page with 8,000 footnotes converts
+  in about 6 s instead of over 200 s, and output is unchanged.
 - AP News photos appeared as code blocks and repeated captions. Images now render as images and matching captions appear once.
 - Gallery photos repeated captions and credits on Ars Technica's MacBook Pro review; each now appears once, with the caption before the credit.
 

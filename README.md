@@ -305,7 +305,7 @@ minified). Readability is most of it.
 The 0.3.1 candidate puts trial provenance and diagnostics in the separate
 `page-markdown/trial` entry. `npm run size` gates the main entry and also reports
 the trial bundle size without a trial size gate. Unreleased: the AP photo and Ars
-gallery fixes bring the main entry to about 86.5 KB minified (`npm run size`, ceiling 87 KB
+gallery fixes bring the main entry to about 86.7 KB minified (`npm run size`, ceiling 87 KB
 minified).
 
 `npm run ci` runs the contract suite, the type check and the size check, and must

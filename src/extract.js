@@ -71,21 +71,35 @@ const MAX_SKIPPED_SHARE = 0.25;
 // marker it closes with. The page itself says it interrupts the text (BBC's
 // most-read and podcast boxes), in whatever language.
 function removeSkippableBoxes(root) {
+  const links = Array.from(root[DOM_QUERY_SELECTOR_ALL]("a[href^='#']"));
+  if (!links.length) return root;
   const size = (el) => withoutSpaces(el[DOM_TEXT_CONTENT] || "");
-  const total = size(root).length;
-  for (const link of Array.from(root[DOM_QUERY_SELECTOR_ALL]("a[href^='#']"))) {
-    const id = link[DOM_GET_ATTRIBUTE]("href").slice(1).replace(/["\\]/g, "\\$&");
+  // One pass for the targets, and each box's text read once: a long article has
+  // thousands of footnote links, all inside the same few boxes.
+  const ends = new Map();
+  for (const el of Array.from(root[DOM_QUERY_SELECTOR_ALL]("[id]"))) {
+    if (!ends.has(el[DOM_GET_ATTRIBUTE]("id"))) ends.set(el[DOM_GET_ATTRIBUTE]("id"), el);
+  }
+  let texts = new Map();
+  let total = -1;
+  for (const link of links) {
+    const id = link[DOM_GET_ATTRIBUTE]("href").slice(1);
+    const end = id && ends.get(id);
+    if (!end || end.contains(link) || !root.contains(link) || !root.contains(end)) continue;
     const label = size(link);
-    if (!id || !label || !root.contains(link)) continue;
-    let box = link.parentElement;
-    let end = null;
-    while (box && box !== root && !(end = box[DOM_QUERY_SELECTOR](`[id="${id}"]`))) box = box.parentElement;
-    if (!end || end.contains(link) || box.matches("main, article, body")) continue;
     const marker = size(end);
-    const text = size(box);
-    if (marker && marker.length <= MAX_END_MARKER_CHARS && text.length > label.length + marker.length
-      && text.length <= total * MAX_SKIPPED_SHARE && text.startsWith(label) && text.endsWith(marker)
-      && !box[DOM_QUERY_SELECTOR](SKIP_KEPT)) box.remove();
+    if (!label || !marker || marker.length > MAX_END_MARKER_CHARS) continue;
+    let box = link.parentElement;
+    while (box && box !== root && !box.contains(end)) box = box.parentElement;
+    if (!box || box === root || box.matches("main, article, body")) continue;
+    if (!texts.has(box)) texts.set(box, size(box));
+    const text = texts.get(box);
+    if (text.length <= label.length + marker.length || !text.startsWith(label) || !text.endsWith(marker)) continue;
+    if (total < 0) total = size(root).length;
+    if (text.length <= total * MAX_SKIPPED_SHARE && !box[DOM_QUERY_SELECTOR](SKIP_KEPT)) {
+      box.remove();
+      texts = new Map();
+    }
   }
   return root;
 }
