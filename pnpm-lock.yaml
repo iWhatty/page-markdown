@@ -12,8 +12,8 @@ importers:
         specifier: 0.6.0
         version: 0.6.0
       text-sanctifier:
-        specifier: 1.3.8
-        version: 1.3.8
+        specifier: 1.3.17
+        version: 1.3.17
       turndown:
         specifier: 7.2.4
         version: 7.2.4
@@ -250,8 +250,8 @@ packages:
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
 
-  text-sanctifier@1.3.8:
-    resolution: {integrity: sha512-YhpxWc5OlBzSIU2fwz6OXvYMb2R3wL4t8Fd4EzaxQMlz9exMR7qb1u3XHVV1SUbFk5UcwHBBlmKXltx5ODcJXw==}
+  text-sanctifier@1.3.17:
+    resolution: {integrity: sha512-DrpLLfeHKrXAdtfEnypdM9StyEBGhuXalJhCCCJ2nsxEskdk/rMbmVTM/nP6T4H6xZcjIiU6ktVjctLoqJxocw==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -437,7 +437,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  text-sanctifier@1.3.8: {}
+  text-sanctifier@1.3.17: {}
 
   turndown@7.2.4:
     dependencies:
