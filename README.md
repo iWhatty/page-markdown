@@ -66,7 +66,7 @@ pageToMarkdown(doc, { url: "https://example.com/article" });
 | `includeTitle` | `true` | Add `# <headline>` to Readability or main-content output when no H1 remains; skipped in `text_only` mode |
 | `recoverLead` | `true` | Restore a lead paragraph the extractor dropped, when it matches the meta description |
 | `pageFacts` | `false` | Append `## Page facts`: short label/value pairs outside the article (a sidebar's version or license, spec rows, infobox rows) that the extractor dropped. `extraction.pageFacts` counts them |
-| `removeHiddenText` | `false` | Remove text hidden from people but read by models: runs of tag characters, variation selectors, invisible operators and reserved tag-plane code points, found by [text-sanctifier](https://github.com/iWhatty/text-sanctifier)'s `findHiddenRuns`. Applies to `markdown` (fenced code included), `fullPageMarkdown` and `metadata`. The England, Scotland and Wales flags and a lone emoji or text presentation selector are kept. `omissions` gets one entry per kind (`hidden_tag`, `hidden_variation_selector`, `hidden_invisible_operator`, `hidden_reserved_tag_plane`) with `count` runs and `chars` code points removed from `markdown` |
+| `removeHiddenText` | `false` | Remove text hidden from people but read by models: runs of tag characters, variation selectors, invisible operators and reserved tag-plane code points, found by [text-sanctifier](https://github.com/iWhatty/text-sanctifier)'s `findHiddenRuns`. Applies to `markdown` (fenced code included), `fullPageMarkdown` and `metadata`. The England, Scotland and Wales flags are kept, along with lone presentation selectors after pictographs or in keycap sequences. A selector after an ordinary letter is removed. `omissions` gets one entry per kind (`hidden_tag`, `hidden_variation_selector`, `hidden_invisible_operator`, `hidden_reserved_tag_plane`) with `count` runs and `chars` code points removed from `markdown` |
 | `mode` | `"full"` | `"no_links"` keeps link text; `"text_only"` also drops structure. Fenced code is never changed |
 | `sanitize` | see `DEFAULT_SANITIZE_OPTIONS` | `stripAds`, `extraStripSelectors` (e.g. `["[data-app-overlay]"]`), shadow limits, which apply per host in the page's own tree and don't charge slotted page content |
 | `readability` | `{}` | Passed to Readability |
@@ -307,6 +307,8 @@ The 0.3.1 candidate puts trial provenance and diagnostics in the separate
 the trial bundle size without a trial size gate. 0.3.2: the AP photo and Ars
 gallery fixes bring the main entry to about 86.7 KB minified (`npm run size`, ceiling 87 KB
 minified).
+With text-sanctifier 1.3.17, the main entry is about 87.6 KB minified and
+32.5 KB gzip (`npm run size`, ceiling 88 KB minified).
 
 `npm run ci` runs the contract suite, the type check and the size check, and must
 exit 0 before a commit. It launches no browser, so run the browser check yourself

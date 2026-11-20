@@ -1,8 +1,8 @@
 // Optional last stage: remove characters that hide text from people but not
 // from models (tag characters, variation-selector runs, invisible operators,
 // reserved tag-plane code points), found by text-sanctifier's run finder. Legitimate sequences are kept: the
-// England, Scotland and Wales flags and a lone emoji or text presentation
-// selector. Unlike the clean stage, this also applies inside fenced code.
+// England, Scotland and Wales flags and lone presentation selectors after
+// pictographs or in keycaps. This also applies inside fenced code.
 import { findHiddenRuns } from "text-sanctifier/hidden";
 
 const NOTES = {

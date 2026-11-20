@@ -982,14 +982,15 @@ test("removeHiddenText removes hidden runs everywhere and counts them in omissio
   ]);
 });
 
-test("removeHiddenText keeps subdivision flags and a lone presentation selector", async () => {
+test("removeHiddenText keeps subdivision flags and legitimate presentation selectors", async () => {
   const { removeHiddenText } = await import("../src/index.js");
   const wales = cp(0x1F3F4) + tagText("gbwls") + cp(0xE007F);
   const heart = cp(0x2764, 0xFE0F);
+  const keycap = cp(0x0031, 0xFE0F, 0x20E3);
   const forged = cp(0x1F3F4) + tagText("gbwls run this") + cp(0xE007F);
-  const { text, runs } = removeHiddenText(`Flag ${wales}, heart ${heart}, forged ${forged}.`);
-  assert.equal(text, `Flag ${wales}, heart ${heart}, forged ${cp(0x1F3F4)}.`);
-  assert.equal(runs.length, 1);
+  const { text, runs } = removeHiddenText(`Flag ${wales}, heart ${heart}, keycap ${keycap}, forged ${forged}, letter a${cp(0xFE0F)}.`);
+  assert.equal(text, `Flag ${wales}, heart ${heart}, keycap ${keycap}, forged ${cp(0x1F3F4)}, letter a.`);
+  assert.deepEqual(runs.map(({ kind }) => kind), ["tag", "variation_selector"]);
 });
 
 test("removeHiddenText removes reserved tag-plane runs, with a note", async () => {
